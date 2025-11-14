@@ -84,4 +84,37 @@ export const unitAPI = {
   delete: (id) => api.delete(`/units/${id}`),
 };
 
+// building API:
+export const buildingAPI = {
+  getAll: () => api.get('/buildings'),
+  getByProject: (projectId) => api.get(`/buildings/project/${projectId}`),
+  getById: (id) => api.get(`/buildings/${id}`),
+  create: (buildingData) => api.post('/buildings', buildingData),
+  update: (id, buildingData) => api.put(`/buildings/${id}`, buildingData),
+  delete: (id) => api.delete(`/buildings/${id}`),
+};
+
+export const customerAPI = {
+  getAll: () => api.get('/customers'),
+  getById: (id) => api.get(`/customers/${id}`),
+  create: (customerData) => api.post('/customers', customerData),
+  update: (id, customerData) => api.put(`/customers/${id}`, customerData),
+};
+
+export const rentalAPI = {
+  getAll: () => api.get('/rentals'),
+  getById: (id) => api.get(`/rentals/${id}`),
+  create: (rentalData) => api.post('/rentals', rentalData),
+  generateBills: (rentalId, month) => api.post(`/rentals/${rentalId}/generate-bills`, { month }),
+  getFinancialSummary: (rentalId) => api.get(`/rentals/${rentalId}/financial-summary`),
+};
+
+export const paymentAPI = {
+  getAll: () => api.get('/payments'),
+  create: (paymentData) => api.post('/payments', paymentData),
+  getSummary: (startDate, endDate) => api.get('/payments/summary', { 
+    params: { startDate, endDate } 
+  }),
+};
+
 export default api;

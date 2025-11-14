@@ -13,6 +13,9 @@ import Register from './pages/Auth/Register';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects/Projects';
 import Units from './pages/Units/Units';
+import Customers from './pages/Customers/Customers';
+import Rentals from './pages/Rentals/Rentals';
+import Payments from './pages/Payments/Payments';
 
 const theme = createTheme({
   palette: {
@@ -42,9 +45,30 @@ function App() {
     <Provider store={store}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-         <ConnectionTest /> {/* Add this line */}
+         <ConnectionTest />
         <Router>
           <Routes>
+              <Route path="/customers" element={
+              <ProtectedRoute>
+                <Layout>
+                  <Customers />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/rentals" element={
+              <ProtectedRoute>
+                <Layout>
+                  <Rentals />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/payments" element={
+              <ProtectedRoute>
+                <Layout>
+                  <Payments />
+                </Layout>
+              </ProtectedRoute>
+            } />
             {/* Public routes */}
             <Route path="/login" element={
               <PublicRoute>

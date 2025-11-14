@@ -3,49 +3,66 @@ const User = require('./User');
 const Project = require('./Project');
 const Building = require('./Building');
 const Unit = require('./Unit');
+const Customer = require('./Customer');
+const Rental = require('./Rental');
+const UtilityType = require('./UtilityType');
+const UtilityBill = require('./UtilityBill');
+const Payment = require('./Payment');
 
-// Define associations
-Project.hasMany(Building, { 
-  foreignKey: 'project_id',
-  as: 'Buildings'
-});
-Building.belongsTo(Project, { 
-  foreignKey: 'project_id',
-  as: 'Project'
-});
+// Existing associations
+Project.hasMany(Building, { foreignKey: 'project_id', as: 'Buildings' });
+Building.belongsTo(Project, { foreignKey: 'project_id', as: 'Project' });
 
-Building.hasMany(Unit, { 
-  foreignKey: 'building_id',
-  as: 'Units'
-});
-Unit.belongsTo(Building, { 
-  foreignKey: 'building_id',
-  as: 'Building'
-});
+Building.hasMany(Unit, { foreignKey: 'building_id', as: 'Units' });
+Unit.belongsTo(Building, { foreignKey: 'building_id', as: 'Building' });
 
-// Sync database and create default admin
+// New associations for rental management
+Unit.hasMany(Rental, { foreignKey: 'unit_id', as: 'Rentals' });
+Rental.belongsTo(Unit, { foreignKey: 'unit_id', as: 'Unit' });
+
+Customer.hasMany(Rental, { foreignKey: 'tenant_id', as: 'Rentals' });
+Rental.belongsTo(Customer, { foreignKey: 'tenant_id', as: 'Tenant' });
+
+// Utility associations
+UtilityType.hasMany(UtilityBill, { foreignKey: 'utility_type_id', as: 'Bills' });
+UtilityBill.belongsTo(UtilityType, { foreignKey: 'utility_type_id', as: 'UtilityType' });
+
+Rental.hasMany(UtilityBill, { foreignKey: 'rental_id', as: 'UtilityBills' });
+UtilityBill.belongsTo(Rental, { foreignKey: 'rental_id', as: 'Rental' });
+
+// Payment associations
+Rental.hasMany(Payment, { foreignKey: 'rental_id', as: 'Payments' });
+Payment.belongsTo(Rental, { foreignKey: 'rental_id', as: 'Rental' });
+
+Customer.hasMany(Payment, { foreignKey: 'customer_id', as: 'Payments' });
+Payment.belongsTo(Customer, { foreignKey: 'customer_id', as: 'Customer' });
+
+// Sync database and create default utility types
 const syncDatabase = async () => {
   try {
     await sequelize.sync({ force: false });
     console.log('✅ Database synced successfully');
     
-    // Create default admin user if no users exist
-    const userCount = await User.count();
-    if (userCount === 0) {
-      await User.create({
-        email: 'admin@realestate.com',
-        password: 'admin123',
-        first_name: 'Admin',
-        last_name: 'User',
-        role: 'admin',
-        phone: '+1234567890'
+    // Create default utility types if they don't exist
+    const utilityTypes = [
+      { name: 'Lift Maintenance', description: 'Monthly lift maintenance fee', default_amount: 500, calculation_type: 'fixed' },
+      { name: 'Generator Maintenance', description: 'Monthly generator maintenance fee', default_amount: 300, calculation_type: 'fixed' },
+      { name: 'Common Area Maintenance', description: 'Common area cleaning and maintenance', default_amount: 200, calculation_type: 'fixed' },
+      { name: 'Security Service', description: 'Security guard services', default_amount: 400, calculation_type: 'fixed' },
+      { name: 'Water Charge', description: 'Water consumption charge', default_amount: 0, calculation_type: 'per_sqft' },
+      { name: 'Service Charge', description: 'General service charge', default_amount: 100, calculation_type: 'percentage_of_rent' }
+    ];
+
+    for (const utilType of utilityTypes) {
+      await UtilityType.findOrCreate({
+        where: { name: utilType.name },
+        defaults: utilType
       });
-      console.log('✅ Default admin user created');
-      console.log('📧 Email: admin@realestate.com');
-      console.log('🔑 Password: admin123');
     }
+    console.log('✅ Default utility types created');
+
   } catch (error) {
-    console.error('❌ Database sync failed:', error.message);
+    console.error('❌ Database sync failed:', error);
   }
 };
 
@@ -56,5 +73,10 @@ module.exports = {
   User,
   Project,
   Building,
-  Unit
+  Unit,
+  Customer,
+  Rental,
+  UtilityType,
+  UtilityBill,
+  Payment
 };

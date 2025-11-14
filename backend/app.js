@@ -26,7 +26,11 @@ app.use('/uploads', express.static('uploads'));
 app.use('/api', require('./routes'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
+app.use('/api/buildings', require('./routes/buildings')); 
 app.use('/api/units', require('./routes/units'));
+app.use('/api/customers', require('./routes/customers'));
+app.use('/api/rentals', require('./routes/rentals'));
+app.use('/api/payments', require('./routes/payments')); 
 
 // Health check
 app.get('/api/health', (req, res) => {
