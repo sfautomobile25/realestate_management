@@ -26,7 +26,7 @@ import {
   CardContent,
   Grid
 } from '@mui/material';
-import { Add, Edit, Delete, Business, Home } from '@mui/icons-material';
+import { Add, Edit, Delete, Business, Home, Apartment } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchProjects,
@@ -36,13 +36,14 @@ import {
 } from '../../store/slices/projectSlice';
 import {
   fetchBuildingsByProject,
-  createBuilding
+  createBuilding,
+  deleteBuilding
 } from '../../store/slices/buildingSlice';
 
 const Projects = () => {
   const dispatch = useDispatch();
-  const { items: projects, loading, error } = useSelector(state => state.projects);
-  const { items: buildings } = useSelector(state => state.buildings);
+  const { items: projects, loading: projectsLoading, error: projectsError } = useSelector(state => state.projects);
+  const { items: buildings, loading: buildingsLoading, error: buildingsError } = useSelector(state => state.buildings);
   
   const [activeTab, setActiveTab] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
@@ -73,10 +74,10 @@ const Projects = () => {
   }, [dispatch]);
 
   useEffect(() => {
-    if (selectedProject) {
+    if (selectedProject && activeTab === 1) {
       dispatch(fetchBuildingsByProject(selectedProject.id));
     }
-  }, [selectedProject, dispatch]);
+  }, [selectedProject, activeTab, dispatch]);
 
   const handleOpenDialog = (project = null) => {
     if (project) {
@@ -87,8 +88,8 @@ const Projects = () => {
         type: project.type,
         status: project.status,
         total_units: project.total_units || '',
-        launch_date: project.launch_date || '',
-        completion_date: project.completion_date || '',
+        launch_date: project.launch_date ? project.launch_date.split('T')[0] : '',
+        completion_date: project.completion_date ? project.completion_date.split('T')[0] : '',
         description: project.description || ''
       });
     } else {
@@ -143,8 +144,9 @@ const Projects = () => {
         setSnackbar({ open: true, message: 'Project created successfully', severity: 'success' });
       }
       handleCloseDialog();
+      dispatch(fetchProjects());
     } catch (error) {
-      setSnackbar({ open: true, message: 'Operation failed', severity: 'error' });
+      setSnackbar({ open: true, message: 'Operation failed: ' + error.message, severity: 'error' });
     }
   };
 
@@ -160,18 +162,33 @@ const Projects = () => {
       await dispatch(createBuilding(submitData)).unwrap();
       setSnackbar({ open: true, message: 'Building added successfully', severity: 'success' });
       handleCloseBuildingDialog();
+      // Refresh buildings list
+      dispatch(fetchBuildingsByProject(selectedProject.id));
     } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to add building', severity: 'error' });
+      setSnackbar({ open: true, message: 'Failed to add building: ' + error.message, severity: 'error' });
     }
   };
 
-  const handleDelete = async (projectId) => {
-    if (window.confirm('Are you sure you want to delete this project?')) {
+  const handleDeleteProject = async (projectId) => {
+    if (window.confirm('Are you sure you want to delete this project? This will also delete all buildings and units in this project.')) {
       try {
         await dispatch(deleteProject(projectId)).unwrap();
         setSnackbar({ open: true, message: 'Project deleted successfully', severity: 'success' });
+        dispatch(fetchProjects());
       } catch (error) {
-        setSnackbar({ open: true, message: 'Delete failed', severity: 'error' });
+        setSnackbar({ open: true, message: 'Delete failed: ' + error.message, severity: 'error' });
+      }
+    }
+  };
+
+  const handleDeleteBuilding = async (buildingId) => {
+    if (window.confirm('Are you sure you want to delete this building? This will also delete all units in this building.')) {
+      try {
+        await dispatch(deleteBuilding(buildingId)).unwrap();
+        setSnackbar({ open: true, message: 'Building deleted successfully', severity: 'success' });
+        dispatch(fetchBuildingsByProject(selectedProject.id));
+      } catch (error) {
+        setSnackbar({ open: true, message: 'Delete failed: ' + error.message, severity: 'error' });
       }
     }
   };
@@ -186,7 +203,7 @@ const Projects = () => {
     return colors[status] || 'default';
   };
 
-  if (loading) return <Typography>Loading...</Typography>;
+  if (projectsLoading) return <Typography>Loading projects...</Typography>;
 
   return (
     <Box>
@@ -201,86 +218,90 @@ const Projects = () => {
         </Button>
       </Box>
 
+      {projectsError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {projectsError}
+        </Alert>
+      )}
+
+      {buildingsError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {buildingsError}
+        </Alert>
+      )}
+
       <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
         <Tab label="All Projects" />
         <Tab label="Project Details" disabled={!selectedProject} />
       </Tabs>
 
       {activeTab === 0 && (
-        <>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Total Units</TableCell>
-                  <TableCell>Launch Date</TableCell>
-                  <TableCell>Buildings</TableCell>
-                  <TableCell>Actions</TableCell>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Total Units</TableCell>
+                <TableCell>Buildings</TableCell>
+                <TableCell>Launch Date</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {projects.map((project) => (
+                <TableRow 
+                  key={project.id}
+                  hover
+                  onClick={() => {
+                    setSelectedProject(project);
+                    setActiveTab(1);
+                  }}
+                  sx={{ cursor: 'pointer' }}
+                >
+                  <TableCell>
+                    <Box display="flex" alignItems="center">
+                      <Business sx={{ mr: 1, color: 'primary.main' }} />
+                      {project.name}
+                    </Box>
+                  </TableCell>
+                  <TableCell>{project.type}</TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={project.status} 
+                      color={getStatusColor(project.status)}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>{project.total_units || 0}</TableCell>
+                  <TableCell>{project.Buildings?.length || 0}</TableCell>
+                  <TableCell>
+                    {project.launch_date 
+                      ? new Date(project.launch_date).toLocaleDateString()
+                      : 'N/A'
+                    }
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenDialog(project)}
+                    >
+                      <Edit />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => handleDeleteProject(project.id)}
+                    >
+                      <Delete />
+                    </IconButton>
+                  </TableCell>
                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {projects.map((project) => (
-                  <TableRow 
-                    key={project.id}
-                    hover
-                    onClick={() => {
-                      setSelectedProject(project);
-                      setActiveTab(1);
-                    }}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    <TableCell>
-                      <Box display="flex" alignItems="center">
-                        <Business sx={{ mr: 1, color: 'primary.main' }} />
-                        {project.name}
-                      </Box>
-                    </TableCell>
-                    <TableCell>{project.type}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={project.status} 
-                        color={getStatusColor(project.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>{project.total_units || 0}</TableCell>
-                    <TableCell>
-                      {project.launch_date 
-                        ? new Date(project.launch_date).toLocaleDateString()
-                        : 'N/A'
-                      }
-                    </TableCell>
-                    <TableCell>{project.Buildings?.length || 0}</TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleOpenDialog(project)}
-                      >
-                        <Edit />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDelete(project.id)}
-                      >
-                        <Delete />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       {activeTab === 1 && selectedProject && (
@@ -323,6 +344,11 @@ const Projects = () => {
                   <Typography variant="body2">
                     <strong>Address:</strong> {selectedProject.address || 'N/A'}
                   </Typography>
+                  {selectedProject.description && (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      <strong>Description:</strong> {selectedProject.description}
+                    </Typography>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -330,32 +356,67 @@ const Projects = () => {
             <Grid item xs={12} md={8}>
               <Typography variant="h6" gutterBottom>
                 Buildings ({buildings.length})
+                {buildingsLoading && <Typography variant="body2" color="textSecondary">Loading...</Typography>}
               </Typography>
-              <Grid container spacing={2}>
-                {buildings.map((building) => (
-                  <Grid item xs={12} sm={6} key={building.id}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <Box display="flex" alignItems="center" mb={1}>
-                          <Home sx={{ mr: 1, color: 'primary.main' }} />
-                          <Typography variant="h6">
-                            {building.name}
+              
+              {buildings.length === 0 ? (
+                <Paper sx={{ p: 3, textAlign: 'center' }}>
+                  <Apartment sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                  <Typography variant="h6" color="textSecondary">
+                    No Buildings Yet
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    Add your first building to this project
+                  </Typography>
+                  <Button 
+                    variant="contained" 
+                    startIcon={<Add />}
+                    onClick={handleOpenBuildingDialog}
+                  >
+                    Add First Building
+                  </Button>
+                </Paper>
+              ) : (
+                <Grid container spacing={2}>
+                  {buildings.map((building) => (
+                    <Grid item xs={12} sm={6} key={building.id}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                            <Box display="flex" alignItems="center">
+                              <Home sx={{ mr: 1, color: 'primary.main' }} />
+                              <Typography variant="h6">
+                                {building.name}
+                              </Typography>
+                            </Box>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteBuilding(building.id)}
+                            >
+                              <Delete />
+                            </IconButton>
+                          </Box>
+                          <Typography variant="body2" color="textSecondary">
+                            Floors: {building.floors || 'N/A'}
                           </Typography>
-                        </Box>
-                        <Typography variant="body2" color="textSecondary">
-                          Floors: {building.floors || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Units: {building.total_units || 0}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Actual Units: {building.Units?.length || 0}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
+                          <Typography variant="body2" color="textSecondary">
+                            Planned Units: {building.total_units || 0}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Actual Units: {building.Units?.length || 0}
+                          </Typography>
+                          {building.description && (
+                            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                              {building.description}
+                            </Typography>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
             </Grid>
           </Grid>
         </Box>
