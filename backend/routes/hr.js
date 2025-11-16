@@ -266,4 +266,276 @@ router.post('/salaries/process', async (req, res) => {
   }
 });
 
+
+// Update employee status - FIXED
+router.put('/employees/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const employee = await Employee.findByPk(req.params.id);
+
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    await employee.update({ status });
+    
+    // Return updated employee with relationships
+    const updatedEmployee = await Employee.findByPk(employee.id, {
+      include: [
+        {
+          model: User,
+          as: 'User',
+          attributes: ['first_name', 'last_name', 'email', 'phone']
+        },
+        {
+          model: Department,
+          as: 'Department'
+        }
+      ]
+    });
+
+    res.json(updatedEmployee);
+  } catch (error) {
+    console.error('Error updating employee status:', error);
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Update employee salary - FIXED
+router.put('/employees/:id/salary', async (req, res) => {
+  try {
+    const { salary } = req.body;
+    const employee = await Employee.findByPk(req.params.id);
+
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    await employee.update({ salary: parseFloat(salary) });
+    
+    // Return updated employee with relationships
+    const updatedEmployee = await Employee.findByPk(employee.id, {
+      include: [
+        {
+          model: User,
+          as: 'User',
+          attributes: ['first_name', 'last_name', 'email', 'phone']
+        },
+        {
+          model: Department,
+          as: 'Department'
+        }
+      ]
+    });
+
+    res.json(updatedEmployee);
+  } catch (error) {
+    console.error('Error updating employee salary:', error);
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Attendance - Check in - FIXED
+router.post('/attendance/checkin', async (req, res) => {
+  try {
+    const { employee_id, notes } = req.body;
+    const today = new Date().toISOString().split('T')[0];
+
+    // Check if already checked in today
+    const existingAttendance = await Attendance.findOne({
+      where: {
+        employee_id,
+        date: today
+      }
+    });
+
+    if (existingAttendance) {
+      // If already checked in but not checked out, return the existing record
+      if (!existingAttendance.check_out) {
+        return res.status(400).json({ message: 'Employee already checked in today' });
+      }
+      // If checked out, create a new check-in
+    }
+
+    const attendance = await Attendance.create({
+      employee_id,
+      check_in: new Date(),
+      date: today,
+      notes: notes || null,
+      status: 'present'
+    });
+
+    const newAttendance = await Attendance.findByPk(attendance.id, {
+      include: [{
+        model: Employee,
+        as: 'Employee',
+        include: [{
+          model: User,
+          as: 'User',
+          attributes: ['first_name', 'last_name']
+        }]
+      }]
+    });
+
+    res.status(201).json(newAttendance);
+  } catch (error) {
+    console.error('Error checking in:', error);
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Attendance - Check out - FIXED
+router.post('/attendance/checkout', async (req, res) => {
+  try {
+    const { employee_id, notes } = req.body;
+    const today = new Date().toISOString().split('T')[0];
+
+    const attendance = await Attendance.findOne({
+      where: {
+        employee_id,
+        date: today,
+        check_out: null
+      }
+    });
+
+    if (!attendance) {
+      return res.status(404).json({ message: 'No active check-in found for today' });
+    }
+
+    const checkOutTime = new Date();
+    const checkInTime = new Date(attendance.check_in);
+    const totalHours = (checkOutTime - checkInTime) / (1000 * 60 * 60); // Convert to hours
+
+    await attendance.update({
+      check_out: checkOutTime,
+      total_hours: parseFloat(totalHours.toFixed(2)),
+      notes: notes || attendance.notes
+    });
+
+    const updatedAttendance = await Attendance.findByPk(attendance.id, {
+      include: [{
+        model: Employee,
+        as: 'Employee',
+        include: [{
+          model: User,
+          as: 'User',
+          attributes: ['first_name', 'last_name']
+        }]
+      }]
+    });
+
+    res.json(updatedAttendance);
+  } catch (error) {
+    console.error('Error checking out:', error);
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Generate advance salary - FIXED
+router.post('/salaries/advance', async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { employee_id, amount, advance_month, payment_method, reference_number, notes } = req.body;
+
+    const employee = await Employee.findByPk(employee_id, {
+      include: [{
+        model: User,
+        as: 'User',
+        attributes: ['first_name', 'last_name']
+      }]
+    });
+
+    if (!employee) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    // Create a special salary record for advance
+    const advanceSalary = await Salary.create({
+      employee_id,
+      month: advance_month,
+      basic_salary: 0,
+      allowances: 0,
+      deductions: 0,
+      net_salary: parseFloat(amount),
+      paid_amount: parseFloat(amount),
+      remaining_amount: 0,
+      status: 'paid',
+      paid_date: new Date(),
+      notes: `Advance salary for ${new Date(advance_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+    }, { transaction });
+
+    // Create payment record
+    const receiptNumber = `ADV${Date.now().toString().slice(-6)}`;
+    const payment = await SalaryPayment.create({
+      salary_id: advanceSalary.id,
+      amount: parseFloat(amount),
+      payment_type: 'advance',
+      payment_method,
+      reference_number: reference_number || null,
+      receipt_number: receiptNumber,
+      notes: notes || null,
+      is_advance: true,
+      advance_month
+    }, { transaction });
+
+    await transaction.commit();
+
+    const paymentDetails = await SalaryPayment.findByPk(payment.id, {
+      include: [{
+        model: Salary,
+        as: 'Salary',
+        include: [{
+          model: Employee,
+          as: 'Employee',
+          include: [{
+            model: User,
+            as: 'User',
+            attributes: ['first_name', 'last_name']
+          }]
+        }]
+      }]
+    });
+
+    res.status(201).json({
+      payment: paymentDetails,
+      receipt_number: receiptNumber
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error generating advance salary:', error);
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Get today's attendance - NEW ENDPOINT
+router.get('/attendance/today', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const attendance = await Attendance.findAll({
+      where: {
+        date: today
+      },
+      include: [{
+        model: Employee,
+        as: 'Employee',
+        include: [{
+          model: User,
+          as: 'User',
+          attributes: ['first_name', 'last_name']
+        }]
+      }],
+      order: [['check_in', 'DESC']]
+    });
+
+    res.json(attendance);
+  } catch (error) {
+    console.error('Error fetching today\'s attendance:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+
 module.exports = router;

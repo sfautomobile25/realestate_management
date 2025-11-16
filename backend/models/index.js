@@ -11,6 +11,8 @@ const Payment = require('./Payment');
 const Employee = require('./Employee');
 const Department = require('./Department');
 const Salary = require('./Salary');
+const Attendance = require('./Attendance');
+const SalaryPayment = require('./SalaryPayment');
 
 // Define associations
 
@@ -134,6 +136,26 @@ Employee.belongsTo(Employee, {
   foreignKey: 'id',
   as: 'Manager',
   constraints: false
+});
+
+Employee.hasMany(Attendance, {
+  foreignKey: 'employee_id',
+  as: 'Attendances',
+  onDelete: 'CASCADE'
+});
+Attendance.belongsTo(Employee, {
+  foreignKey: 'employee_id',
+  as: 'Employee'
+});
+
+Salary.hasMany(SalaryPayment, {
+  foreignKey: 'salary_id',
+  as: 'Payments',
+  onDelete: 'CASCADE'
+});
+SalaryPayment.belongsTo(Salary, {
+  foreignKey: 'salary_id',
+  as: 'Salary'
 });
 
 // Sync database and create default data

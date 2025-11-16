@@ -35,8 +35,16 @@ const Salary = sequelize.define('Salary', {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false
   },
+  paid_amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  remaining_amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
   status: {
-    type: DataTypes.ENUM('pending', 'paid', 'cancelled'),
+    type: DataTypes.ENUM('pending', 'partial', 'paid', 'overdue'),
     defaultValue: 'pending'
   },
   paid_date: {

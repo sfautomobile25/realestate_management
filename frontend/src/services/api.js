@@ -75,6 +75,8 @@ export const hrAPI = {
   // Employees
   getEmployees: () => api.get('/hr/employees'),
   createEmployee: (employeeData) => api.post('/hr/employees', employeeData),
+  updateEmployeeStatus: (id, status) => api.put(`/hr/employees/${id}/status`, { status }),
+  updateEmployeeSalary: (id, salary) => api.put(`/hr/employees/${id}/salary`, { salary }),
   
   // Departments
   getDepartments: () => api.get('/hr/departments'),
@@ -84,6 +86,17 @@ export const hrAPI = {
   getSalaries: (params = {}) => api.get('/hr/salaries', { params }),
   generateSalaries: (month) => api.post('/hr/salaries/generate', { month }),
   processSalary: (salaryData) => api.post('/hr/salaries/process', salaryData),
+  
+  // Salary Payments
+  processSalaryPayment: (paymentData) => api.post('/hr/salaries/pay', paymentData),
+  getSalaryPayments: (salaryId) => api.get(`/hr/salaries/${salaryId}/payments`),
+  generateAdvanceSalary: (advanceData) => api.post('/hr/salaries/advance', advanceData),
+  
+  // Attendance
+  getAttendance: (params = {}) => api.get('/hr/attendance', { params }),
+  getTodayAttendance: () => api.get('/hr/attendance/today'),
+  checkIn: (data) => api.post('/hr/attendance/checkin', data),
+  checkOut: (data) => api.post('/hr/attendance/checkout', data),
 };
 
 

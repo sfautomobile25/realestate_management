@@ -7,36 +7,40 @@ const Attendance = sequelize.define('Attendance', {
     primaryKey: true,
     autoIncrement: true
   },
-  date: {
+  employee_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'employees',
+      key: 'id'
+    }
+  },
+  check_in: {
     type: DataTypes.DATE,
     allowNull: false
   },
-  check_in: {
-    type: DataTypes.TIME,
+  check_out: {
+    type: DataTypes.DATE,
     allowNull: true
   },
-  check_out: {
-    type: DataTypes.TIME,
-    allowNull: true
+  date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  total_hours: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 0
   },
   status: {
-    type: DataTypes.ENUM('present', 'absent', 'late', 'half_day', 'holiday'),
+    type: DataTypes.ENUM('present', 'absent', 'half_day', 'late'),
     defaultValue: 'present'
-  },
-  hours_worked: {
-    type: DataTypes.DECIMAL(4, 2),
-    defaultValue: 0
-  },
-  overtime_hours: {
-    type: DataTypes.DECIMAL(4, 2),
-    defaultValue: 0
   },
   notes: {
     type: DataTypes.TEXT,
     allowNull: true
   }
 }, {
-  tableName: 'attendance',
+  tableName: 'attendances',
   timestamps: true
 });
 

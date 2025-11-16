@@ -27,6 +27,22 @@ export const createEmployee = createAsyncThunk(
   }
 );
 
+export const updateEmployeeStatus = createAsyncThunk(
+  'hr/updateEmployeeStatus',
+  async ({ id, status }) => {
+    const response = await hrAPI.updateEmployeeStatus(id, status);
+    return response.data;
+  }
+);
+
+export const updateEmployeeSalary = createAsyncThunk(
+  'hr/updateEmployeeSalary',
+  async ({ id, salary }) => {
+    const response = await hrAPI.updateEmployeeSalary(id, salary);
+    return response.data;
+  }
+);
+
 // Departments
 export const fetchDepartments = createAsyncThunk(
   'hr/fetchDepartments',
@@ -69,6 +85,65 @@ export const processSalary = createAsyncThunk(
   }
 );
 
+// Salary Payments
+export const processSalaryPayment = createAsyncThunk(
+  'hr/processSalaryPayment',
+  async (paymentData) => {
+    const response = await hrAPI.processSalaryPayment(paymentData);
+    return response.data;
+  }
+);
+
+export const fetchSalaryPayments = createAsyncThunk(
+  'hr/fetchSalaryPayments',
+  async (salaryId) => {
+    const response = await hrAPI.getSalaryPayments(salaryId);
+    return response.data;
+  }
+);
+
+export const generateAdvanceSalary = createAsyncThunk(
+  'hr/generateAdvanceSalary',
+  async (advanceData) => {
+    const response = await hrAPI.generateAdvanceSalary(advanceData);
+    return response.data;
+  }
+);
+
+// Attendance
+export const fetchAttendance = createAsyncThunk(
+  'hr/fetchAttendance',
+  async (params = {}) => {
+    const response = await hrAPI.getAttendance(params);
+    return response.data;
+  }
+);
+
+export const checkIn = createAsyncThunk(
+  'hr/checkIn',
+  async (checkInData) => {
+    const response = await hrAPI.checkIn(checkInData);
+    return response.data;
+  }
+);
+
+export const checkOut = createAsyncThunk(
+  'hr/checkOut',
+  async (checkOutData) => {
+    const response = await hrAPI.checkOut(checkOutData);
+    return response.data;
+  }
+);
+
+// Today's Attendance
+export const fetchTodayAttendance = createAsyncThunk(
+  'hr/fetchTodayAttendance',
+  async () => {
+    const response = await hrAPI.getTodayAttendance();
+    return response.data;
+  }
+);
+
 const hrSlice = createSlice({
   name: 'hr',
   initialState: {
@@ -91,7 +166,23 @@ const hrSlice = createSlice({
       items: [],
       loading: false,
       error: null
-    }
+    },
+    attendance: {
+      items: [],
+      loading: false,
+      error: null
+    },
+    todayAttendance: {
+      items: [],
+      loading: false,
+      error: null
+    },
+    salaryPayments: {
+      items: [],
+      loading: false,
+      error: null
+    },
+    currentReceipt: null
   },
   reducers: {
     clearHrError: (state) => {
@@ -99,6 +190,15 @@ const hrSlice = createSlice({
       state.employees.error = null;
       state.departments.error = null;
       state.salaries.error = null;
+      state.attendance.error = null;
+      state.todayAttendance.error = null;
+      state.salaryPayments.error = null;
+    },
+    clearReceipt: (state) => {
+      state.currentReceipt = null;
+    },
+    clearSalaryPayments: (state) => {
+      state.salaryPayments.items = [];
     }
   },
   extraReducers: (builder) => {
@@ -116,6 +216,7 @@ const hrSlice = createSlice({
         state.users.loading = false;
         state.users.error = action.error.message;
       })
+      
       // Employees
       .addCase(fetchEmployees.pending, (state) => {
         state.employees.loading = true;
@@ -134,6 +235,19 @@ const hrSlice = createSlice({
         // Remove the user from available users list
         state.users.items = state.users.items.filter(user => user.id !== action.payload.user_id);
       })
+      .addCase(updateEmployeeStatus.fulfilled, (state, action) => {
+        const index = state.employees.items.findIndex(emp => emp.id === action.payload.id);
+        if (index !== -1) {
+          state.employees.items[index] = action.payload;
+        }
+      })
+      .addCase(updateEmployeeSalary.fulfilled, (state, action) => {
+        const index = state.employees.items.findIndex(emp => emp.id === action.payload.id);
+        if (index !== -1) {
+          state.employees.items[index] = action.payload;
+        }
+      })
+      
       // Departments
       .addCase(fetchDepartments.pending, (state) => {
         state.departments.loading = true;
@@ -150,6 +264,7 @@ const hrSlice = createSlice({
       .addCase(createDepartment.fulfilled, (state, action) => {
         state.departments.items.push(action.payload);
       })
+      
       // Salaries
       .addCase(fetchSalaries.pending, (state) => {
         state.salaries.loading = true;
@@ -165,9 +280,84 @@ const hrSlice = createSlice({
       })
       .addCase(generateSalaries.fulfilled, (state, action) => {
         state.salaries.items = [...state.salaries.items, ...action.payload];
+      })
+      .addCase(processSalary.fulfilled, (state, action) => {
+        const index = state.salaries.items.findIndex(s => s.id === action.payload.id);
+        if (index !== -1) {
+          state.salaries.items[index] = action.payload;
+        }
+      })
+      
+      // Salary Payments
+      .addCase(fetchSalaryPayments.pending, (state) => {
+        state.salaryPayments.loading = true;
+        state.salaryPayments.error = null;
+      })
+      .addCase(fetchSalaryPayments.fulfilled, (state, action) => {
+        state.salaryPayments.loading = false;
+        state.salaryPayments.items = action.payload;
+      })
+      .addCase(fetchSalaryPayments.rejected, (state, action) => {
+        state.salaryPayments.loading = false;
+        state.salaryPayments.error = action.error.message;
+      })
+      .addCase(processSalaryPayment.fulfilled, (state, action) => {
+        state.currentReceipt = action.payload;
+        // Update salary status in the list
+        const salaryIndex = state.salaries.items.findIndex(s => s.id === action.payload.payment.salary_id);
+        if (salaryIndex !== -1) {
+          state.salaries.items[salaryIndex].status = action.payload.new_salary_status;
+          state.salaries.items[salaryIndex].paid_amount = action.payload.payment.Salary.paid_amount;
+          state.salaries.items[salaryIndex].remaining_amount = action.payload.remaining_amount;
+        }
+      })
+      .addCase(generateAdvanceSalary.fulfilled, (state, action) => {
+        state.currentReceipt = action.payload;
+      })
+      
+      // Attendance
+      .addCase(fetchAttendance.pending, (state) => {
+        state.attendance.loading = true;
+        state.attendance.error = null;
+      })
+      .addCase(fetchAttendance.fulfilled, (state, action) => {
+        state.attendance.loading = false;
+        state.attendance.items = action.payload;
+      })
+      .addCase(fetchAttendance.rejected, (state, action) => {
+        state.attendance.loading = false;
+        state.attendance.error = action.error.message;
+      })
+       // Today's Attendance
+      .addCase(fetchTodayAttendance.pending, (state) => {
+        state.todayAttendance.loading = true;
+        state.todayAttendance.error = null;
+      })
+      .addCase(fetchTodayAttendance.fulfilled, (state, action) => {
+        state.todayAttendance.loading = false;
+        state.todayAttendance.items = action.payload;
+      })
+      .addCase(fetchTodayAttendance.rejected, (state, action) => {
+        state.todayAttendance.loading = false;
+        state.todayAttendance.error = action.error.message;
+      })
+      // Check In/Out - Update today's attendance
+      .addCase(checkIn.fulfilled, (state, action) => {
+        state.attendance.items.unshift(action.payload);
+        state.todayAttendance.items.unshift(action.payload);
+      })
+      .addCase(checkOut.fulfilled, (state, action) => {
+        const index = state.attendance.items.findIndex(att => att.id === action.payload.id);
+        if (index !== -1) {
+          state.attendance.items[index] = action.payload;
+        }
+        const todayIndex = state.todayAttendance.items.findIndex(att => att.id === action.payload.id);
+        if (todayIndex !== -1) {
+          state.todayAttendance.items[todayIndex] = action.payload;
+        }
       });
   }
 });
 
-export const { clearHrError } = hrSlice.actions;
+export const { clearHrError, clearReceipt, clearSalaryPayments } = hrSlice.actions;
 export default hrSlice.reducer;
