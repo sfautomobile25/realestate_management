@@ -17,6 +17,7 @@ import Customers from './pages/Customers/Customers';
 import Rentals from './pages/Rentals/Rentals';
 import Payments from './pages/Payments/Payments';
 import Buildings from './pages/Buildings/Buildings'
+import HRManagement from './pages/HRManagement/HRManagement';
 
 const theme = createTheme({
   palette: {
@@ -49,6 +50,13 @@ function App() {
          <ConnectionTest />
         <Router>
           <Routes>
+            <Route path="/hr" element={
+              <ProtectedRoute>
+                <Layout>
+                  <HRManagement />
+                </Layout>
+              </ProtectedRoute>
+            } />
             <Route path="/buildings" element={
               <ProtectedRoute>
                 <Layout>

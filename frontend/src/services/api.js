@@ -68,6 +68,25 @@ export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
 };
 
+export const hrAPI = {
+  // Users for employee creation
+  getAvailableUsers: () => api.get('/hr/users'),
+  
+  // Employees
+  getEmployees: () => api.get('/hr/employees'),
+  createEmployee: (employeeData) => api.post('/hr/employees', employeeData),
+  
+  // Departments
+  getDepartments: () => api.get('/hr/departments'),
+  createDepartment: (departmentData) => api.post('/hr/departments', departmentData),
+  
+  // Salaries
+  getSalaries: (params = {}) => api.get('/hr/salaries', { params }),
+  generateSalaries: (month) => api.post('/hr/salaries/generate', { month }),
+  processSalary: (salaryData) => api.post('/hr/salaries/process', salaryData),
+};
+
+
 export const projectAPI = {
   getAll: () => api.get('/projects'),
   getById: (id) => api.get(`/projects/${id}`),
@@ -82,6 +101,27 @@ export const unitAPI = {
   create: (unitData) => api.post('/units', unitData),
   update: (id, unitData) => api.put(`/units/${id}`, unitData),
   delete: (id) => api.delete(`/units/${id}`),
+};
+
+export const departmentAPI = {
+  getAll: () => api.get('/departments'),
+  create: (departmentData) => api.post('/departments', departmentData),
+  update: (id, departmentData) => api.put(`/departments/${id}`, departmentData),
+};
+
+export const employeeAPI = {
+  getAll: () => api.get('/employees'),
+  getById: (id) => api.get(`/employees/${id}`),
+  create: (employeeData) => api.post('/employees', employeeData),
+  update: (id, employeeData) => api.put(`/employees/${id}`, employeeData),
+  getSalaries: (id) => api.get(`/employees/${id}/salaries`),
+  processSalary: (employeeId, salaryData) => api.post(`/employees/${employeeId}/process-salary`, salaryData),
+};
+
+export const salaryAPI = {
+  getAll: (params = {}) => api.get('/salaries', { params }),
+  markAsPaid: (id, paymentData) => api.put(`/salaries/${id}/pay`, paymentData),
+  getSummary: (month) => api.get('/salaries/summary', { params: { month } }),
 };
 
 // building API:

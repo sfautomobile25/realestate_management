@@ -8,8 +8,13 @@ const Rental = require('./Rental');
 const UtilityType = require('./UtilityType');
 const UtilityBill = require('./UtilityBill');
 const Payment = require('./Payment');
+const Employee = require('./Employee');
+const Department = require('./Department');
+const Salary = require('./Salary');
 
 // Define associations
+
+// Project-Building-Unit associations
 Project.hasMany(Building, { 
   foreignKey: 'project_id', 
   as: 'Buildings',
@@ -30,7 +35,7 @@ Unit.belongsTo(Building, {
   as: 'Building'
 });
 
-// New associations for rental management
+// Rental associations
 Unit.hasMany(Rental, { 
   foreignKey: 'unit_id', 
   as: 'Rentals',
@@ -93,6 +98,44 @@ Payment.belongsTo(Customer, {
   as: 'Customer'
 });
 
+// HR Associations
+Department.hasMany(Employee, {
+  foreignKey: 'department_id',
+  as: 'Employees',
+  onDelete: 'SET NULL'
+});
+Employee.belongsTo(Department, {
+  foreignKey: 'department_id',
+  as: 'Department'
+});
+
+User.hasOne(Employee, {
+  foreignKey: 'user_id',
+  as: 'Employee',
+  onDelete: 'CASCADE'
+});
+Employee.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'User'
+});
+
+Employee.hasMany(Salary, {
+  foreignKey: 'employee_id',
+  as: 'Salaries',
+  onDelete: 'CASCADE'
+});
+Salary.belongsTo(Employee, {
+  foreignKey: 'employee_id',
+  as: 'Employee'
+});
+
+// Self-referencing for department manager
+Employee.belongsTo(Employee, {
+  foreignKey: 'id',
+  as: 'Manager',
+  constraints: false
+});
+
 // Sync database and create default data
 const syncDatabase = async () => {
   try {
@@ -109,7 +152,6 @@ const syncDatabase = async () => {
       { name: 'Service Charge', description: 'General service charge', default_amount: 5, calculation_type: 'percentage_of_rent' }
     ];
 
-    // Use the imported UtilityType model directly
     for (const utilType of utilityTypes) {
       await UtilityType.findOrCreate({
         where: { name: utilType.name },
@@ -117,6 +159,23 @@ const syncDatabase = async () => {
       });
     }
     console.log('✅ Default utility types created');
+
+    // Create default departments if they don't exist
+    const defaultDepartments = [
+      { name: 'Management', description: 'Company management and administration' },
+      { name: 'Sales', description: 'Property sales and marketing' },
+      { name: 'Operations', description: 'Property operations and maintenance' },
+      { name: 'Finance', description: 'Financial management and accounting' },
+      { name: 'HR', description: 'Human resources and staff management' }
+    ];
+
+    for (const dept of defaultDepartments) {
+      await Department.findOrCreate({
+        where: { name: dept.name },
+        defaults: dept
+      });
+    }
+    console.log('✅ Default departments created');
 
   } catch (error) {
     console.error('❌ Database sync failed:', error);
@@ -135,5 +194,8 @@ module.exports = {
   Rental,
   UtilityType,
   UtilityBill,
-  Payment
+  Payment,
+  Employee,
+  Department,
+  Salary
 };
