@@ -1,5 +1,5 @@
 const express = require('express');
-const { Employee, Department, Salary, User } = require('../models');
+const { Employee, Department, Salary, User, Attendance, SalaryPayment, sequelize  } = require('../models');
 const { Op } = require('sequelize');
 const router = express.Router();
 

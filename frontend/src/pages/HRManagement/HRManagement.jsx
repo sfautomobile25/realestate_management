@@ -28,15 +28,12 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Switch,
-  FormControlLabel,
   Divider,
   Tooltip
 } from '@mui/material';
 import {
   Add,
   Edit,
-  Delete,
   People,
   Business,
   AttachMoney,
@@ -44,10 +41,9 @@ import {
   Refresh,
   Schedule,
   History,
-  Receipt,
+  Print,
   PlayArrow,
-  Stop,
-  Print
+  Stop
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -68,7 +64,6 @@ import {
   updateEmployeeSalary,
   clearReceipt
 } from '../../store/slices/hrSlice';
-import { format } from 'date-fns';
 
 const HRManagement = () => {
   const dispatch = useDispatch();
@@ -81,8 +76,6 @@ const HRManagement = () => {
     salaryPayments: { items: salaryPayments, loading: paymentsLoading, error: paymentsError },
     currentReceipt
   } = useSelector(state => state.hr);
-  
-  const { user: currentUser } = useSelector(state => state.auth);
   
   const [activeTab, setActiveTab] = useState(0);
   const [openEmployeeDialog, setOpenEmployeeDialog] = useState(false);
@@ -149,7 +142,7 @@ const HRManagement = () => {
     dispatch(fetchAttendance());
   };
 
-  // Employee Management
+  // Employee Management - FIXED
   const handleOpenEmployeeDialog = () => {
     setEmployeeForm({
       user_id: '',
@@ -168,10 +161,14 @@ const HRManagement = () => {
   const handleOpenEmployeeEditDialog = (employee) => {
     setSelectedEmployee(employee);
     setEmployeeEditForm({
-      salary: employee.salary,
-      status: employee.status
+      salary: employee.salary || '',
+      status: employee.status || 'active'
     });
     setOpenEmployeeEditDialog(true);
+  };
+
+  const handleCloseEmployeeDialog = () => {
+    setOpenEmployeeDialog(false);
   };
 
   const handleCloseEmployeeEditDialog = () => {
@@ -179,8 +176,27 @@ const HRManagement = () => {
     setSelectedEmployee(null);
   };
 
+  const handleEmployeeSubmit = async () => {
+    try {
+      const submitData = {
+        ...employeeForm,
+        salary: parseFloat(employeeForm.salary),
+        joining_date: employeeForm.joining_date
+      };
+
+      await dispatch(createEmployee(submitData)).unwrap();
+      setSnackbar({ open: true, message: 'Employee created successfully', severity: 'success' });
+      handleCloseEmployeeDialog();
+    } catch (error) {
+      console.error('Error creating employee:', error);
+      setSnackbar({ open: true, message: 'Failed to create employee: ' + error.message, severity: 'error' });
+    }
+  };
+
   const handleEmployeeEditSubmit = async () => {
     try {
+      console.log('Updating employee:', selectedEmployee.id, employeeEditForm);
+      
       if (employeeEditForm.salary !== selectedEmployee.salary) {
         await dispatch(updateEmployeeSalary({
           id: selectedEmployee.id,
@@ -199,6 +215,7 @@ const HRManagement = () => {
       handleCloseEmployeeEditDialog();
       dispatch(fetchEmployees());
     } catch (error) {
+      console.error('Error updating employee:', error);
       setSnackbar({ open: true, message: 'Failed to update employee: ' + error.message, severity: 'error' });
     }
   };
@@ -210,6 +227,20 @@ const HRManagement = () => {
       description: ''
     });
     setOpenDepartmentDialog(true);
+  };
+
+  const handleCloseDepartmentDialog = () => {
+    setOpenDepartmentDialog(false);
+  };
+
+  const handleDepartmentSubmit = async () => {
+    try {
+      await dispatch(createDepartment(departmentForm)).unwrap();
+      setSnackbar({ open: true, message: 'Department created successfully', severity: 'success' });
+      handleCloseDepartmentDialog();
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to create department: ' + error.message, severity: 'error' });
+    }
   };
 
   // Salary Payment Management
@@ -244,38 +275,18 @@ const HRManagement = () => {
     setOpenPaymentHistoryDialog(true);
   };
 
-  // Close dialogs
-  const handleCloseEmployeeDialog = () => setOpenEmployeeDialog(false);
-  const handleCloseDepartmentDialog = () => setOpenDepartmentDialog(false);
-  const handleCloseSalaryPaymentDialog = () => setOpenSalaryPaymentDialog(false);
-  const handleCloseAdvanceSalaryDialog = () => setOpenAdvanceSalaryDialog(false);
-  const handleClosePaymentHistoryDialog = () => setOpenPaymentHistoryDialog(false);
-
-  // Form submissions
-  const handleEmployeeSubmit = async () => {
-    try {
-      const submitData = {
-        ...employeeForm,
-        salary: parseFloat(employeeForm.salary),
-        joining_date: employeeForm.joining_date
-      };
-
-      await dispatch(createEmployee(submitData)).unwrap();
-      setSnackbar({ open: true, message: 'Employee created successfully', severity: 'success' });
-      handleCloseEmployeeDialog();
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to create employee: ' + error.message, severity: 'error' });
-    }
+  const handleCloseSalaryPaymentDialog = () => {
+    setOpenSalaryPaymentDialog(false);
+    setSelectedSalary(null);
   };
 
-  const handleDepartmentSubmit = async () => {
-    try {
-      await dispatch(createDepartment(departmentForm)).unwrap();
-      setSnackbar({ open: true, message: 'Department created successfully', severity: 'success' });
-      handleCloseDepartmentDialog();
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to create department: ' + error.message, severity: 'error' });
-    }
+  const handleCloseAdvanceSalaryDialog = () => {
+    setOpenAdvanceSalaryDialog(false);
+  };
+
+  const handleClosePaymentHistoryDialog = () => {
+    setOpenPaymentHistoryDialog(false);
+    setSelectedSalary(null);
   };
 
   const handleSalaryPaymentSubmit = async () => {
@@ -290,12 +301,15 @@ const HRManagement = () => {
       handleCloseSalaryPaymentDialog();
       dispatch(fetchSalaries());
     } catch (error) {
+      console.error('Error processing salary payment:', error);
       setSnackbar({ open: true, message: 'Failed to process payment: ' + error.message, severity: 'error' });
     }
   };
 
+  // Advance Salary - FIXED
   const handleAdvanceSalarySubmit = async () => {
     try {
+      console.log('Generating advance salary:', advanceSalaryForm);
       const submitData = {
         ...advanceSalaryForm,
         amount: parseFloat(advanceSalaryForm.amount)
@@ -306,13 +320,15 @@ const HRManagement = () => {
       handleCloseAdvanceSalaryDialog();
       dispatch(fetchSalaries());
     } catch (error) {
+      console.error('Error generating advance salary:', error);
       setSnackbar({ open: true, message: 'Failed to generate advance salary: ' + error.message, severity: 'error' });
     }
   };
 
-  // Attendance Management
+  // Attendance Management - FIXED
   const handleCheckIn = async (employeeId) => {
     try {
+      console.log('Checking in employee:', employeeId);
       await dispatch(checkIn({
         employee_id: employeeId,
         notes: 'Regular check-in'
@@ -320,12 +336,14 @@ const HRManagement = () => {
       setSnackbar({ open: true, message: 'Checked in successfully', severity: 'success' });
       dispatch(fetchAttendance());
     } catch (error) {
+      console.error('Error checking in:', error);
       setSnackbar({ open: true, message: 'Failed to check in: ' + error.message, severity: 'error' });
     }
   };
 
   const handleCheckOut = async (employeeId) => {
     try {
+      console.log('Checking out employee:', employeeId);
       await dispatch(checkOut({
         employee_id: employeeId,
         notes: 'Regular check-out'
@@ -333,11 +351,12 @@ const HRManagement = () => {
       setSnackbar({ open: true, message: 'Checked out successfully', severity: 'success' });
       dispatch(fetchAttendance());
     } catch (error) {
+      console.error('Error checking out:', error);
       setSnackbar({ open: true, message: 'Failed to check out: ' + error.message, severity: 'error' });
     }
   };
 
-  // Check if employee is checked in today
+  // Check if employee is checked in today - FIXED
   const isCheckedInToday = (employeeId) => {
     const today = new Date().toISOString().split('T')[0];
     return attendance.find(att => 
@@ -372,12 +391,12 @@ const HRManagement = () => {
                 <p>Date: ${new Date().toLocaleDateString()}</p>
               </div>
               <div class="details">
-                <p><strong>Employee:</strong> ${currentReceipt.payment.Salary.Employee.User.first_name} ${currentReceipt.payment.Salary.Employee.User.last_name}</p>
-                <p><strong>Amount:</strong> $${currentReceipt.payment.amount}</p>
-                <p><strong>Payment Type:</strong> ${currentReceipt.payment.payment_type}</p>
-                <p><strong>Payment Method:</strong> ${currentReceipt.payment.payment_method}</p>
-                <p><strong>Reference:</strong> ${currentReceipt.payment.reference_number || 'N/A'}</p>
-                <p><strong>Notes:</strong> ${currentReceipt.payment.notes || 'N/A'}</p>
+                <p><strong>Employee:</strong> ${currentReceipt.payment?.Salary?.Employee?.User?.first_name || 'N/A'} ${currentReceipt.payment?.Salary?.Employee?.User?.last_name || 'N/A'}</p>
+                <p><strong>Amount:</strong> $${currentReceipt.payment?.amount || 0}</p>
+                <p><strong>Payment Type:</strong> ${currentReceipt.payment?.payment_type || 'N/A'}</p>
+                <p><strong>Payment Method:</strong> ${currentReceipt.payment?.payment_method || 'N/A'}</p>
+                <p><strong>Reference:</strong> ${currentReceipt.payment?.reference_number || 'N/A'}</p>
+                <p><strong>Notes:</strong> ${currentReceipt.payment?.notes || 'N/A'}</p>
               </div>
               <div class="footer">
                 <div class="signature">
@@ -417,7 +436,7 @@ const HRManagement = () => {
     return colors[status] || 'default';
   };
 
-  // Calculate statistics
+  // Calculate statistics - UPDATED
   const stats = {
     totalEmployees: employees.length,
     totalDepartments: departments.length,
@@ -425,7 +444,10 @@ const HRManagement = () => {
     totalSalary: employees.reduce((sum, emp) => sum + parseFloat(emp.salary || 0), 0),
     pendingSalaries: salaries.filter(s => s.status === 'pending').length,
     paidSalaries: salaries.filter(s => s.status === 'paid').length,
-    todayAttendance: attendance.filter(att => att.date === new Date().toISOString().split('T')[0]).length
+    todayAttendance: attendance.filter(att => att.date === new Date().toISOString().split('T')[0]).length,
+    checkedInToday: attendance.filter(att => 
+      att.date === new Date().toISOString().split('T')[0] && !att.check_out
+    ).length
   };
 
   return (
@@ -476,7 +498,7 @@ const HRManagement = () => {
                 <Typography color="textSecondary">Today's Attendance</Typography>
               </Box>
               <Typography variant="h4" color="info.main">
-                {stats.todayAttendance}
+                {stats.checkedInToday}
               </Typography>
             </CardContent>
           </Card>
@@ -530,10 +552,16 @@ const HRManagement = () => {
                 onClick={handleOpenEmployeeDialog}
                 disabled={availableUsers.length === 0}
               >
-                Add Employee
+                Add Employee ({availableUsers.length} available)
               </Button>
             </Box>
           </Box>
+
+          {availableUsers.length === 0 && !usersLoading && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              No available users found. Please create users first in the system before adding them as employees.
+            </Alert>
+          )}
 
           <TableContainer component={Paper}>
             <Table>
@@ -588,78 +616,108 @@ const HRManagement = () => {
         <Box>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
             <Typography variant="h5">Attendance Tracking</Typography>
-            <Typography variant="body2" color="textSecondary">
-              Today: {new Date().toLocaleDateString()}
-            </Typography>
+            <Box>
+              <Button
+                variant="outlined"
+                startIcon={<Refresh />}
+                onClick={() => dispatch(fetchAttendance())}
+                sx={{ mr: 2 }}
+              >
+                Refresh
+              </Button>
+              <Typography variant="body2" color="textSecondary">
+                Today: {new Date().toLocaleDateString()} | {stats.checkedInToday} checked in
+              </Typography>
+            </Box>
           </Box>
 
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Employee</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>Check-in Time</TableCell>
-                  <TableCell>Check-out Time</TableCell>
-                  <TableCell>Total Hours</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {employees.map((employee) => {
-                  const todayAttendance = isCheckedInToday(employee.id);
-                  return (
-                    <TableRow key={employee.id}>
-                      <TableCell>
-                        {employee.User?.first_name} {employee.User?.last_name}
-                      </TableCell>
-                      <TableCell>{employee.Department?.name || 'N/A'}</TableCell>
-                      <TableCell>
-                        {todayAttendance ? format(new Date(todayAttendance.check_in), 'hh:mm a') : 'Not checked in'}
-                      </TableCell>
-                      <TableCell>
-                        {todayAttendance?.check_out ? format(new Date(todayAttendance.check_out), 'hh:mm a') : 'Not checked out'}
-                      </TableCell>
-                      <TableCell>
-                        {todayAttendance?.total_hours || '0'} hours
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={todayAttendance ? (todayAttendance.check_out ? 'Completed' : 'Checked In') : 'Absent'} 
-                          color={todayAttendance ? (todayAttendance.check_out ? 'success' : 'warning') : 'error'}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {!todayAttendance ? (
-                          <Tooltip title="Check In">
-                            <IconButton
-                              size="small"
-                              color="success"
-                              onClick={() => handleCheckIn(employee.id)}
-                            >
-                              <PlayArrow />
-                            </IconButton>
-                          </Tooltip>
-                        ) : !todayAttendance.check_out ? (
-                          <Tooltip title="Check Out">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleCheckOut(employee.id)}
-                            >
-                              <Stop />
-                            </IconButton>
-                          </Tooltip>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          {attendanceLoading ? (
+            <Typography>Loading attendance...</Typography>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Employee</TableCell>
+                    <TableCell>Department</TableCell>
+                    <TableCell>Check-in Time</TableCell>
+                    <TableCell>Check-out Time</TableCell>
+                    <TableCell>Total Hours</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {employees.map((employee) => {
+                    const employeeAttendance = isCheckedInToday(employee.id);
+                    return (
+                      <TableRow key={employee.id}>
+                        <TableCell>
+                          {employee.User?.first_name} {employee.User?.last_name}
+                        </TableCell>
+                        <TableCell>{employee.Department?.name || 'N/A'}</TableCell>
+                        <TableCell>
+                          {employeeAttendance ? 
+                            new Date(employeeAttendance.check_in).toLocaleTimeString() : 
+                            'Not checked in'
+                          }
+                        </TableCell>
+                        <TableCell>
+                          {employeeAttendance?.check_out ? 
+                            new Date(employeeAttendance.check_out).toLocaleTimeString() : 
+                            'Not checked out'
+                          }
+                        </TableCell>
+                        <TableCell>
+                          {employeeAttendance?.total_hours ? 
+                            `${employeeAttendance.total_hours} hours` : 
+                            '0 hours'
+                          }
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={employeeAttendance ? 
+                              (employeeAttendance.check_out ? 'Completed' : 'Checked In') : 
+                              'Not Checked In'
+                            } 
+                            color={employeeAttendance ? 
+                              (employeeAttendance.check_out ? 'success' : 'warning') : 
+                              'error'
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {!employeeAttendance ? (
+                            <Tooltip title="Check In">
+                              <IconButton
+                                size="small"
+                                color="success"
+                                onClick={() => handleCheckIn(employee.id)}
+                                disabled={employee.status !== 'active'}
+                              >
+                                <PlayArrow />
+                              </IconButton>
+                            </Tooltip>
+                          ) : !employeeAttendance.check_out ? (
+                            <Tooltip title="Check Out">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleCheckOut(employee.id)}
+                              >
+                                <Stop />
+                              </IconButton>
+                            </Tooltip>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Box>
       )}
 
@@ -691,81 +749,112 @@ const HRManagement = () => {
             </Box>
           </Box>
 
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Employee</TableCell>
-                  <TableCell>Month</TableCell>
-                  <TableCell>Basic Salary</TableCell>
-                  <TableCell>Allowances</TableCell>
-                  <TableCell>Deductions</TableCell>
-                  <TableCell>Net Salary</TableCell>
-                  <TableCell>Paid Amount</TableCell>
-                  <TableCell>Remaining</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {salaries.map((salary) => (
-                  <TableRow key={salary.id}>
-                    <TableCell>
-                      {salary.Employee?.User?.first_name} {salary.Employee?.User?.last_name}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(salary.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                    </TableCell>
-                    <TableCell>${parseFloat(salary.basic_salary || 0).toLocaleString()}</TableCell>
-                    <TableCell>${parseFloat(salary.allowances || 0).toLocaleString()}</TableCell>
-                    <TableCell>${parseFloat(salary.deductions || 0).toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Typography fontWeight="bold">
-                        ${parseFloat(salary.net_salary || 0).toLocaleString()}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>${parseFloat(salary.paid_amount || 0).toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Typography color={salary.remaining_amount > 0 ? "error" : "success"}>
-                        ${parseFloat(salary.remaining_amount || 0).toLocaleString()}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={salary.status} 
-                        color={getStatusColor(salary.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box display="flex" gap={1}>
-                        {salary.remaining_amount > 0 && (
-                          <Tooltip title="Make Payment">
+          {employees.length === 0 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              No employees found. Please add employees first to generate salaries.
+            </Alert>
+          )}
+
+          {salariesLoading ? (
+            <Typography>Loading salaries...</Typography>
+          ) : salaries.length === 0 ? (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <AttachMoney sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                No Salary Records
+              </Typography>
+              <Typography variant="body1" color="textSecondary" sx={{ mb: 3 }}>
+                Generate salaries for the current month to get started.
+              </Typography>
+              <Button 
+                variant="contained" 
+                startIcon={<Payment />}
+                onClick={() => {
+                  const currentMonth = new Date().toISOString().split('T')[0].substring(0, 7) + '-01';
+                  dispatch(generateSalaries(currentMonth));
+                }}
+                disabled={employees.length === 0}
+              >
+                Generate Salaries
+              </Button>
+            </Paper>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Employee</TableCell>
+                    <TableCell>Month</TableCell>
+                    <TableCell>Basic Salary</TableCell>
+                    <TableCell>Allowances</TableCell>
+                    <TableCell>Deductions</TableCell>
+                    <TableCell>Net Salary</TableCell>
+                    <TableCell>Paid Amount</TableCell>
+                    <TableCell>Remaining</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {salaries.map((salary) => (
+                    <TableRow key={salary.id}>
+                      <TableCell>
+                        {salary.Employee?.User?.first_name} {salary.Employee?.User?.last_name}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(salary.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      </TableCell>
+                      <TableCell>${parseFloat(salary.basic_salary || 0).toLocaleString()}</TableCell>
+                      <TableCell>${parseFloat(salary.allowances || 0).toLocaleString()}</TableCell>
+                      <TableCell>${parseFloat(salary.deductions || 0).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Typography fontWeight="bold">
+                          ${parseFloat(salary.net_salary || 0).toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>${parseFloat(salary.paid_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Typography color={salary.remaining_amount > 0 ? "error" : "success"}>
+                          ${parseFloat(salary.remaining_amount || 0).toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={salary.status} 
+                          color={getStatusColor(salary.status)}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={1}>
+                          {salary.remaining_amount > 0 && (
+                            <Tooltip title="Make Payment">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => handleOpenSalaryPaymentDialog(salary)}
+                              >
+                                <Payment />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          <Tooltip title="Payment History">
                             <IconButton
                               size="small"
-                              color="primary"
-                              onClick={() => handleOpenSalaryPaymentDialog(salary)}
+                              color="info"
+                              onClick={() => handleOpenPaymentHistoryDialog(salary)}
                             >
-                              <Payment />
+                              <History />
                             </IconButton>
                           </Tooltip>
-                        )}
-                        <Tooltip title="Payment History">
-                          <IconButton
-                            size="small"
-                            color="info"
-                            onClick={() => handleOpenPaymentHistoryDialog(salary)}
-                          >
-                            <History />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Box>
       )}
 
@@ -783,36 +872,57 @@ const HRManagement = () => {
             </Button>
           </Box>
 
-          <Grid container spacing={3}>
-            {departments.map((department) => (
-              <Grid item xs={12} sm={6} md={4} key={department.id}>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      {department.name}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
-                      {department.description || 'No description'}
-                    </Typography>
-                    <Box mt={2}>
-                      <Typography variant="body2">
-                        <strong>Employees:</strong> {department.Employees?.length || 0}
+          {departmentsLoading ? (
+            <Typography>Loading departments...</Typography>
+          ) : departments.length === 0 ? (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Business sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                No Departments Found
+              </Typography>
+              <Typography variant="body1" color="textSecondary" sx={{ mb: 3 }}>
+                Create your first department to organize employees.
+              </Typography>
+              <Button 
+                variant="contained" 
+                startIcon={<Add />}
+                onClick={handleOpenDepartmentDialog}
+              >
+                Add First Department
+              </Button>
+            </Paper>
+          ) : (
+            <Grid container spacing={3}>
+              {departments.map((department) => (
+                <Grid item xs={12} sm={6} md={4} key={department.id}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        {department.name}
                       </Typography>
-                      <Typography variant="body2">
-                        <strong>Status:</strong> 
-                        <Chip 
-                          label={department.is_active ? 'Active' : 'Inactive'} 
-                          color={department.is_active ? 'success' : 'default'}
-                          size="small"
-                          sx={{ ml: 1 }}
-                        />
+                      <Typography variant="body2" color="textSecondary" gutterBottom>
+                        {department.description || 'No description'}
                       </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
+                      <Box mt={2}>
+                        <Typography variant="body2">
+                          <strong>Employees:</strong> {department.Employees?.length || 0}
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>Status:</strong> 
+                          <Chip 
+                            label={department.is_active ? 'Active' : 'Inactive'} 
+                            color={department.is_active ? 'success' : 'default'}
+                            size="small"
+                            sx={{ ml: 1 }}
+                          />
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
         </Box>
       )}
 
@@ -829,6 +939,7 @@ const HRManagement = () => {
               onChange={(e) => setEmployeeForm({ ...employeeForm, employee_id: e.target.value })}
               margin="normal"
               required
+              helperText="Auto-generated employee ID"
             />
             <TextField
               fullWidth
@@ -838,6 +949,7 @@ const HRManagement = () => {
               onChange={(e) => setEmployeeForm({ ...employeeForm, user_id: e.target.value })}
               margin="normal"
               required
+              helperText="Select a user to register as employee"
             >
               {availableUsers.map((user) => (
                 <MenuItem key={user.id} value={user.id}>
@@ -897,9 +1009,11 @@ const HRManagement = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Employee Edit Dialog */}
+      {/* Employee Edit Dialog - FIXED */}
       <Dialog open={openEmployeeEditDialog} onClose={handleCloseEmployeeEditDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Employee</DialogTitle>
+        <DialogTitle>
+          Edit Employee - {selectedEmployee?.User?.first_name} {selectedEmployee?.User?.last_name}
+        </DialogTitle>
         <DialogContent>
           <Box component="form" sx={{ mt: 2 }}>
             <TextField
@@ -1029,22 +1143,21 @@ const HRManagement = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Advance Salary Dialog */}
+      {/* Advance Salary Dialog - FIXED */}
       <Dialog open={openAdvanceSalaryDialog} onClose={handleCloseAdvanceSalaryDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Generate Advance Salary</DialogTitle>
         <DialogContent>
           <Box component="form" sx={{ mt: 2 }}>
-            <FormControl fullWidth margin="normal">
+            <FormControl fullWidth margin="normal" required>
               <InputLabel>Employee</InputLabel>
               <Select
                 value={advanceSalaryForm.employee_id}
                 label="Employee"
                 onChange={(e) => setAdvanceSalaryForm({ ...advanceSalaryForm, employee_id: e.target.value })}
-                required
               >
-                {employees.map((emp) => (
+                {employees.filter(emp => emp.status === 'active').map((emp) => (
                   <MenuItem key={emp.id} value={emp.id}>
-                    {emp.User?.first_name} {emp.User?.last_name}
+                    {emp.User?.first_name} {emp.User?.last_name} - ${emp.salary}
                   </MenuItem>
                 ))}
               </Select>
@@ -1057,6 +1170,7 @@ const HRManagement = () => {
               onChange={(e) => setAdvanceSalaryForm({ ...advanceSalaryForm, amount: e.target.value })}
               margin="normal"
               required
+              helperText="Enter the advance amount"
             />
             <TextField
               fullWidth
@@ -1166,11 +1280,11 @@ const HRManagement = () => {
               <Box sx={{ mb: 2 }}>
                 <Typography><strong>Receipt No:</strong> {currentReceipt.receipt_number}</Typography>
                 <Typography><strong>Date:</strong> {new Date().toLocaleDateString()}</Typography>
-                <Typography><strong>Employee:</strong> {currentReceipt.payment.Salary.Employee.User.first_name} {currentReceipt.payment.Salary.Employee.User.last_name}</Typography>
-                <Typography><strong>Amount:</strong> ${currentReceipt.payment.amount}</Typography>
-                <Typography><strong>Payment Type:</strong> {currentReceipt.payment.payment_type}</Typography>
-                <Typography><strong>Payment Method:</strong> {currentReceipt.payment.payment_method}</Typography>
-                <Typography><strong>Reference:</strong> {currentReceipt.payment.reference_number || 'N/A'}</Typography>
+                <Typography><strong>Employee:</strong> {currentReceipt.payment?.Salary?.Employee?.User?.first_name || 'N/A'} {currentReceipt.payment?.Salary?.Employee?.User?.last_name || 'N/A'}</Typography>
+                <Typography><strong>Amount:</strong> ${currentReceipt.payment?.amount || 0}</Typography>
+                <Typography><strong>Payment Type:</strong> {currentReceipt.payment?.payment_type || 'N/A'}</Typography>
+                <Typography><strong>Payment Method:</strong> {currentReceipt.payment?.payment_method || 'N/A'}</Typography>
+                <Typography><strong>Reference:</strong> {currentReceipt.payment?.reference_number || 'N/A'}</Typography>
               </Box>
               <Divider sx={{ my: 1 }} />
               <Typography variant="body2" align="center" color="textSecondary">

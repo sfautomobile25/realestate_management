@@ -9,7 +9,6 @@ export const fetchAvailableUsers = createAsyncThunk(
     return response.data;
   }
 );
-
 // Employees
 export const fetchEmployees = createAsyncThunk(
   'hr/fetchEmployees',
@@ -18,7 +17,6 @@ export const fetchEmployees = createAsyncThunk(
     return response.data;
   }
 );
-
 export const createEmployee = createAsyncThunk(
   'hr/createEmployee',
   async (employeeData) => {
@@ -26,7 +24,6 @@ export const createEmployee = createAsyncThunk(
     return response.data;
   }
 );
-
 export const updateEmployeeStatus = createAsyncThunk(
   'hr/updateEmployeeStatus',
   async ({ id, status }) => {
