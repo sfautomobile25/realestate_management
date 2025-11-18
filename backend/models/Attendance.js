@@ -15,24 +15,24 @@ const Attendance = sequelize.define('Attendance', {
       key: 'id'
     }
   },
+  date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
   check_in: {
     type: DataTypes.DATE,
-    allowNull: false
+    allowNull: true
   },
   check_out: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  date: {
-    type: DataTypes.DATEONLY,
-    allowNull: false
-  },
   total_hours: {
     type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 0
+    allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('present', 'absent', 'half_day', 'late'),
+    type: DataTypes.ENUM('present', 'absent', 'late', 'half_day'),
     defaultValue: 'present'
   },
   notes: {
@@ -40,8 +40,14 @@ const Attendance = sequelize.define('Attendance', {
     allowNull: true
   }
 }, {
-  tableName: 'attendances',
-  timestamps: true
+  tableName: 'attendance',
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['employee_id', 'date']
+    }
+  ]
 });
 
 module.exports = Attendance;

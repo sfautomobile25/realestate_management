@@ -1,16 +1,15 @@
 import axios from 'axios';
 
-// Use environment variable or default to localhost:5000
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
-console.log('API Base URL:', API_BASE_URL); // Debug log
+console.log('API Base URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 10000,
 });
 
 // Request interceptor
@@ -85,9 +84,8 @@ export const hrAPI = {
   // Salaries
   getSalaries: (params = {}) => api.get('/hr/salaries', { params }),
   generateSalaries: (month) => api.post('/hr/salaries/generate', { month }),
-  processSalary: (salaryData) => api.post('/hr/salaries/process', salaryData),
   
-  // Salary Payments
+  // Salary Payments - FIXED ENDPOINTS
   processSalaryPayment: (paymentData) => api.post('/hr/salaries/pay', paymentData),
   getSalaryPayments: (salaryId) => api.get(`/hr/salaries/${salaryId}/payments`),
   generateAdvanceSalary: (advanceData) => api.post('/hr/salaries/advance', advanceData),
@@ -99,6 +97,27 @@ export const hrAPI = {
   checkOut: (data) => api.post('/hr/attendance/checkout', data),
 };
 
+// ADD THESE MISSING EXPORTS
+export const employeeAPI = {
+  getAll: () => api.get('/hr/employees'),
+  getById: (id) => api.get(`/hr/employees/${id}`),
+  create: (employeeData) => api.post('/hr/employees', employeeData),
+  update: (id, employeeData) => api.put(`/hr/employees/${id}`, employeeData),
+  getSalaries: (id) => api.get(`/hr/employees/${id}/salaries`),
+  processSalary: (employeeId, salaryData) => api.post(`/hr/employees/${employeeId}/process-salary`, salaryData),
+};
+
+export const salaryAPI = {
+  getAll: (params = {}) => api.get('/hr/salaries', { params }),
+  markAsPaid: (id, paymentData) => api.put(`/hr/salaries/${id}/pay`, paymentData),
+  getSummary: (month) => api.get('/hr/salaries/summary', { params: { month } }),
+};
+
+export const departmentAPI = {
+  getAll: () => api.get('/hr/departments'),
+  create: (departmentData) => api.post('/hr/departments', departmentData),
+  update: (id, departmentData) => api.put(`/hr/departments/${id}`, departmentData),
+};
 
 export const projectAPI = {
   getAll: () => api.get('/projects'),
@@ -116,28 +135,6 @@ export const unitAPI = {
   delete: (id) => api.delete(`/units/${id}`),
 };
 
-export const departmentAPI = {
-  getAll: () => api.get('/departments'),
-  create: (departmentData) => api.post('/departments', departmentData),
-  update: (id, departmentData) => api.put(`/departments/${id}`, departmentData),
-};
-
-export const employeeAPI = {
-  getAll: () => api.get('/employees'),
-  getById: (id) => api.get(`/employees/${id}`),
-  create: (employeeData) => api.post('/employees', employeeData),
-  update: (id, employeeData) => api.put(`/employees/${id}`, employeeData),
-  getSalaries: (id) => api.get(`/employees/${id}/salaries`),
-  processSalary: (employeeId, salaryData) => api.post(`/employees/${employeeId}/process-salary`, salaryData),
-};
-
-export const salaryAPI = {
-  getAll: (params = {}) => api.get('/salaries', { params }),
-  markAsPaid: (id, paymentData) => api.put(`/salaries/${id}/pay`, paymentData),
-  getSummary: (month) => api.get('/salaries/summary', { params: { month } }),
-};
-
-// building API:
 export const buildingAPI = {
   getAll: () => api.get('/buildings'),
   getByProject: (projectId) => api.get(`/buildings/project/${projectId}`),

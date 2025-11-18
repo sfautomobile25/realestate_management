@@ -325,6 +325,16 @@ const HRManagement = () => {
     }
   };
 
+  const handleGenerateSalaries = async () => {
+    try {
+      const currentMonth = new Date().toISOString().split('T')[0].substring(0, 7) + '-01';
+      await dispatch(generateSalaries(currentMonth)).unwrap();
+      setSnackbar({ open: true, message: 'Salaries generated successfully', severity: 'success' });
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to generate salaries: ' + error.message, severity: 'error' });
+    }
+  };
+
   // Attendance Management - FIXED
   const handleCheckIn = async (employeeId) => {
     try {
@@ -355,6 +365,7 @@ const HRManagement = () => {
       setSnackbar({ open: true, message: 'Failed to check out: ' + error.message, severity: 'error' });
     }
   };
+  
 
   // Check if employee is checked in today - FIXED
   const isCheckedInToday = (employeeId) => {
@@ -735,13 +746,10 @@ const HRManagement = () => {
               >
                 Advance Salary
               </Button>
-              <Button
+                <Button
                 variant="contained"
                 startIcon={<Payment />}
-                onClick={() => {
-                  const currentMonth = new Date().toISOString().split('T')[0].substring(0, 7) + '-01';
-                  dispatch(generateSalaries(currentMonth));
-                }}
+                onClick={handleGenerateSalaries}  // Use the fixed function
                 disabled={employees.length === 0}
               >
                 Generate Salaries

@@ -9,6 +9,7 @@ export const fetchAvailableUsers = createAsyncThunk(
     return response.data;
   }
 );
+
 // Employees
 export const fetchEmployees = createAsyncThunk(
   'hr/fetchEmployees',
@@ -17,6 +18,7 @@ export const fetchEmployees = createAsyncThunk(
     return response.data;
   }
 );
+
 export const createEmployee = createAsyncThunk(
   'hr/createEmployee',
   async (employeeData) => {
@@ -24,6 +26,7 @@ export const createEmployee = createAsyncThunk(
     return response.data;
   }
 );
+
 export const updateEmployeeStatus = createAsyncThunk(
   'hr/updateEmployeeStatus',
   async ({ id, status }) => {
@@ -70,14 +73,6 @@ export const generateSalaries = createAsyncThunk(
   'hr/generateSalaries',
   async (month) => {
     const response = await hrAPI.generateSalaries(month);
-    return response.data;
-  }
-);
-
-export const processSalary = createAsyncThunk(
-  'hr/processSalary',
-  async (salaryData) => {
-    const response = await hrAPI.processSalary(salaryData);
     return response.data;
   }
 );
@@ -229,7 +224,6 @@ const hrSlice = createSlice({
       })
       .addCase(createEmployee.fulfilled, (state, action) => {
         state.employees.items.push(action.payload);
-        // Remove the user from available users list
         state.users.items = state.users.items.filter(user => user.id !== action.payload.user_id);
       })
       .addCase(updateEmployeeStatus.fulfilled, (state, action) => {
@@ -278,12 +272,6 @@ const hrSlice = createSlice({
       .addCase(generateSalaries.fulfilled, (state, action) => {
         state.salaries.items = [...state.salaries.items, ...action.payload];
       })
-      .addCase(processSalary.fulfilled, (state, action) => {
-        const index = state.salaries.items.findIndex(s => s.id === action.payload.id);
-        if (index !== -1) {
-          state.salaries.items[index] = action.payload;
-        }
-      })
       
       // Salary Payments
       .addCase(fetchSalaryPayments.pending, (state) => {
@@ -300,7 +288,6 @@ const hrSlice = createSlice({
       })
       .addCase(processSalaryPayment.fulfilled, (state, action) => {
         state.currentReceipt = action.payload;
-        // Update salary status in the list
         const salaryIndex = state.salaries.items.findIndex(s => s.id === action.payload.payment.salary_id);
         if (salaryIndex !== -1) {
           state.salaries.items[salaryIndex].status = action.payload.new_salary_status;
@@ -325,7 +312,8 @@ const hrSlice = createSlice({
         state.attendance.loading = false;
         state.attendance.error = action.error.message;
       })
-       // Today's Attendance
+      
+      // Today's Attendance
       .addCase(fetchTodayAttendance.pending, (state) => {
         state.todayAttendance.loading = true;
         state.todayAttendance.error = null;
@@ -338,7 +326,8 @@ const hrSlice = createSlice({
         state.todayAttendance.loading = false;
         state.todayAttendance.error = action.error.message;
       })
-      // Check In/Out - Update today's attendance
+      
+      // Check In/Out
       .addCase(checkIn.fulfilled, (state, action) => {
         state.attendance.items.unshift(action.payload);
         state.todayAttendance.items.unshift(action.payload);
