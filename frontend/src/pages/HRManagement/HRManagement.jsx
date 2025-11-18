@@ -308,22 +308,23 @@ const HRManagement = () => {
 
   // Advance Salary - FIXED
   const handleAdvanceSalarySubmit = async () => {
-    try {
-      console.log('Generating advance salary:', advanceSalaryForm);
-      const submitData = {
-        ...advanceSalaryForm,
-        amount: parseFloat(advanceSalaryForm.amount)
-      };
+  try {
+    console.log('Generating advance salary:', advanceSalaryForm);
+    const submitData = {
+      ...advanceSalaryForm,
+      amount: parseFloat(advanceSalaryForm.amount)
+    };
 
-      await dispatch(generateAdvanceSalary(submitData)).unwrap();
-      setSnackbar({ open: true, message: 'Advance salary generated successfully', severity: 'success' });
-      handleCloseAdvanceSalaryDialog();
-      dispatch(fetchSalaries());
-    } catch (error) {
-      console.error('Error generating advance salary:', error);
-      setSnackbar({ open: true, message: 'Failed to generate advance salary: ' + error.message, severity: 'error' });
-    }
-  };
+    await dispatch(generateAdvanceSalary(submitData)).unwrap();
+    setSnackbar({ open: true, message: 'Advance salary generated successfully', severity: 'success' });
+    handleCloseAdvanceSalaryDialog();
+    dispatch(fetchSalaries());
+  } catch (error) {
+    console.error('Error generating advance salary:', error);
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to generate advance salary';
+    setSnackbar({ open: true, message: errorMessage, severity: 'error' });
+  }
+};
 
   const handleGenerateSalaries = async () => {
     try {

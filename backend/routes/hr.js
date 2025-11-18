@@ -350,6 +350,14 @@ router.post('/salaries/advance', async (req, res) => {
   try {
     const { employee_id, amount, advance_month, payment_method, reference_number, notes } = req.body;
 
+    //validation
+    if (!employee_id || !amount || !advance_month) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: 'Employee ID, amount, and advance month are required'
+      })
+    }
+
     const employee = await Employee.findByPk(employee_id, {
       include: [{
         model: User,
@@ -417,6 +425,10 @@ router.post('/salaries/advance', async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error('Error generating advance salary:', error);
+    
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ message: 'Duplicate entry detected' });
+    }
     res.status(400).json({ message: error.message });
   }
 });
@@ -527,6 +539,9 @@ router.post('/attendance/checkin', async (req, res) => {
     res.status(201).json(newAttendance);
   } catch (error) {
     console.error('Error checking in:', error);
+    if(error.name === 'SequelizeUniqueConstraintError'){
+      return res.status(400).json({ message: 'Employee already has attendance record for today' });
+    }
     res.status(400).json({ message: error.message });
   }
 });
