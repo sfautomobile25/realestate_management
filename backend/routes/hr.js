@@ -181,17 +181,29 @@ router.get('/salaries', async (req, res) => {
           attributes: ['first_name', 'last_name']
         }]
       }],
-      order: [['month', 'DESC']]
+      order: [['month', 'DESC'], ['employee_id', 'ASC']]
     });
 
-    res.json(salaries);
+    // Group by employee and month to ensure uniqueness
+    const uniqueSalaries = [];
+    const seen = new Set();
+
+    salaries.forEach(salary => {
+      const key = `${salary.employee_id}-${salary.month}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueSalaries.push(salary);
+      }
+    });
+
+    res.json(uniqueSalaries);
   } catch (error) {
     console.error('Error fetching salaries:', error);
     res.status(500).json({ message: error.message });
   }
 });
 
-// Generate monthly salaries
+// Generate monthly salaries - UPDATED
 router.post('/salaries/generate', async (req, res) => {
   try {
     const { month } = req.body;
@@ -223,13 +235,21 @@ router.post('/salaries/generate', async (req, res) => {
     });
 
     const salaryPromises = activeEmployees.map(employee => {
+      // Calculate allowances (10% of basic salary as example)
+      const basicSalary = parseFloat(employee.salary);
+      const allowances = basicSalary * 0.10; // 10% allowance
+      const deductions = 0; // You can add deduction logic here
+      const netSalary = basicSalary + allowances - deductions;
+
       return Salary.create({
         employee_id: employee.id,
         month: targetMonth,
-        basic_salary: employee.salary,
-        allowances: 0,
-        deductions: 0,
-        net_salary: employee.salary,
+        basic_salary: basicSalary,
+        allowances: allowances,
+        deductions: deductions,
+        net_salary: netSalary,
+        paid_amount: 0,
+        remaining_amount: netSalary,
         status: 'pending'
       });
     });
@@ -257,25 +277,37 @@ router.post('/salaries/pay', async (req, res) => {
     }
 
     const paymentAmount = parseFloat(amount);
-    const currentPaid = parseFloat(salary.paid_amount || 0);
-    const newPaidAmount = currentPaid + paymentAmount;
-    const remainingAmount = parseFloat(salary.net_salary) - newPaidAmount;
+    const remainingAmount = parseFloat(salary.remaining_amount);
+    const netSalary = parseFloat(salary.net_salary);
+    const currentPaidAmount = parseFloat(salary.paid_amount || 0);
+
+    // Check if payment exceeds remaining amount
+    if (paymentAmount > remainingAmount) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        message: `Payment amount (${paymentAmount}) cannot exceed remaining amount (${remainingAmount})` 
+      });
+    }
+
+    // Calculate new amounts
+    const newPaidAmount = currentPaidAmount + paymentAmount;
+    const newRemainingAmount = netSalary - newPaidAmount;
 
     // Update salary record
     await salary.update({
       paid_amount: newPaidAmount,
-      remaining_amount: remainingAmount,
-      status: remainingAmount <= 0 ? 'paid' : 'partial',
-      paid_date: remainingAmount <= 0 ? new Date() : null
+      remaining_amount: newRemainingAmount,
+      status: newRemainingAmount === 0 ? 'paid' : 'partial',
+      paid_date: new Date()
     }, { transaction });
 
     // Create payment record
     const receiptNumber = `SAL${Date.now().toString().slice(-6)}`;
     const payment = await SalaryPayment.create({
-      salary_id: salary.id,
+      salary_id: salary_id,
       amount: paymentAmount,
-      payment_type,
-      payment_method,
+      payment_type: payment_type,
+      payment_method: payment_method,
       reference_number: reference_number || null,
       receipt_number: receiptNumber,
       notes: notes || null,
@@ -302,9 +334,8 @@ router.post('/salaries/pay', async (req, res) => {
 
     res.status(201).json({
       payment: paymentDetails,
-      new_salary_status: salary.status,
-      remaining_amount: remainingAmount,
-      receipt_number: receiptNumber
+      new_salary_status: newRemainingAmount === 0 ? 'paid' : 'partial',
+      remaining_amount: newRemainingAmount
     });
   } catch (error) {
     await transaction.rollback();
@@ -343,20 +374,12 @@ router.get('/salaries/:salaryId/payments', async (req, res) => {
   }
 });
 
-// Generate advance salary - FIXED ENDPOINT
+// Generate advance salary - UPDATED with proper deduction logic
 router.post('/salaries/advance', async (req, res) => {
   const transaction = await sequelize.transaction();
   
   try {
     const { employee_id, amount, advance_month, payment_method, reference_number, notes } = req.body;
-
-    //validation
-    if (!employee_id || !amount || !advance_month) {
-      await transaction.rollback();
-      return res.status(400).json({
-        message: 'Employee ID, amount, and advance month are required'
-      })
-    }
 
     const employee = await Employee.findByPk(employee_id, {
       include: [{
@@ -371,26 +394,65 @@ router.post('/salaries/advance', async (req, res) => {
       return res.status(404).json({ message: 'Employee not found' });
     }
 
-    // Create a special salary record for advance
-    const advanceSalary = await Salary.create({
-      employee_id,
-      month: advance_month,
-      basic_salary: 0,
-      allowances: 0,
-      deductions: 0,
-      net_salary: parseFloat(amount),
-      paid_amount: parseFloat(amount),
-      remaining_amount: 0,
-      status: 'paid',
-      paid_date: new Date(),
-      notes: `Advance salary for ${new Date(advance_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
-    }, { transaction });
+    const advanceAmount = parseFloat(amount);
+    const employeeSalary = parseFloat(employee.salary);
+
+    // Check if advance amount exceeds monthly salary
+    if (advanceAmount > employeeSalary) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        message: `Advance amount (${advanceAmount}) cannot exceed monthly salary (${employeeSalary})` 
+      });
+    }
+
+    // Check for existing salary record for the advance month
+    let salaryRecord = await Salary.findOne({
+      where: {
+        employee_id: employee_id,
+        month: advance_month
+      }
+    });
+
+    if (salaryRecord) {
+      // Update existing salary record
+      const newPaidAmount = parseFloat(salaryRecord.paid_amount || 0) + advanceAmount;
+      const newRemainingAmount = parseFloat(salaryRecord.net_salary || 0) - newPaidAmount;
+
+      // Check if payment exceeds net salary
+      if (newPaidAmount > parseFloat(salaryRecord.net_salary)) {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          message: `Total payments (${newPaidAmount}) cannot exceed net salary (${salaryRecord.net_salary})` 
+        });
+      }
+
+      await salaryRecord.update({
+        paid_amount: newPaidAmount,
+        remaining_amount: newRemainingAmount,
+        status: newRemainingAmount === 0 ? 'paid' : 'partial'
+      }, { transaction });
+
+    } else {
+      // Create a new salary record for advance
+      salaryRecord = await Salary.create({
+        employee_id,
+        month: advance_month,
+        basic_salary: employeeSalary,
+        allowances: employeeSalary * 0.10, // 10% allowance
+        deductions: 0,
+        net_salary: employeeSalary + (employeeSalary * 0.10),
+        paid_amount: advanceAmount,
+        remaining_amount: (employeeSalary + (employeeSalary * 0.10)) - advanceAmount,
+        status: advanceAmount >= employeeSalary ? 'paid' : 'partial',
+        notes: `Advance salary for ${new Date(advance_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+      }, { transaction });
+    }
 
     // Create payment record
     const receiptNumber = `ADV${Date.now().toString().slice(-6)}`;
     const payment = await SalaryPayment.create({
-      salary_id: advanceSalary.id,
-      amount: parseFloat(amount),
+      salary_id: salaryRecord.id,
+      amount: advanceAmount,
       payment_type: 'advance',
       payment_method,
       reference_number: reference_number || null,
@@ -425,10 +487,6 @@ router.post('/salaries/advance', async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error('Error generating advance salary:', error);
-    
-    if (error.name === 'SequelizeUniqueConstraintError') {
-      return res.status(400).json({ message: 'Duplicate entry detected' });
-    }
     res.status(400).json({ message: error.message });
   }
 });

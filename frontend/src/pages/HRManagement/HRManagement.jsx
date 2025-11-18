@@ -290,21 +290,32 @@ const HRManagement = () => {
   };
 
   const handleSalaryPaymentSubmit = async () => {
-    try {
-      const submitData = {
-        ...salaryPaymentForm,
-        amount: parseFloat(salaryPaymentForm.amount)
-      };
+  try {
+    const submitData = {
+      ...salaryPaymentForm,
+      amount: parseFloat(salaryPaymentForm.amount)
+    };
 
-      await dispatch(processSalaryPayment(submitData)).unwrap();
-      setSnackbar({ open: true, message: 'Salary payment processed successfully', severity: 'success' });
-      handleCloseSalaryPaymentDialog();
-      dispatch(fetchSalaries());
-    } catch (error) {
-      console.error('Error processing salary payment:', error);
-      setSnackbar({ open: true, message: 'Failed to process payment: ' + error.message, severity: 'error' });
+    // Frontend validation
+    const selectedSalary = salaries.find(s => s.id === submitData.salary_id);
+    if (selectedSalary && submitData.amount > selectedSalary.remaining_amount) {
+      setSnackbar({ 
+        open: true, 
+        message: `Payment amount cannot exceed remaining amount ($${selectedSalary.remaining_amount})`, 
+        severity: 'error' 
+      });
+      return;
     }
-  };
+
+    await dispatch(processSalaryPayment(submitData)).unwrap();
+    setSnackbar({ open: true, message: 'Salary payment processed successfully', severity: 'success' });
+    handleCloseSalaryPaymentDialog();
+    dispatch(fetchSalaries());
+  } catch (error) {
+    console.error('Error processing salary payment:', error);
+    setSnackbar({ open: true, message: 'Failed to process payment: ' + error.message, severity: 'error' });
+  }
+};
 
   // Advance Salary - FIXED
   const handleAdvanceSalarySubmit = async () => {
