@@ -219,5 +219,7 @@ module.exports = {
   Payment,
   Employee,
   Department,
-  Salary
+  Salary,
+  Attendance,  // Add this line
+  SalaryPayment  // Add this line
 };
