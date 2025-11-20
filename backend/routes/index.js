@@ -1,17 +1,24 @@
 const express = require('express');
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  res.json({
-    message: 'Real Estate Management API',
-    version: '1.0.0',
-    endpoints: {
-      auth: '/api/auth',
-      projects: '/api/projects',
-      units: '/api/units'
-    },
-    timestamp: new Date().toISOString()
-  });
-});
+// Import all route files
+const authRoutes = require('./auth');
+const projectRoutes = require('./projects');
+const buildingRoutes = require('./buildings');
+const unitRoutes = require('./units'); // Make sure this exists
+const customerRoutes = require('./customers');
+const rentalRoutes = require('./rentals');
+const paymentRoutes = require('./payments');
+const hrRoutes = require('./hr');
+
+// Mount routes
+router.use('/auth', authRoutes);
+router.use('/projects', projectRoutes);
+router.use('/buildings', buildingRoutes);
+router.use('/units', unitRoutes); // Make sure this is here
+router.use('/customers', customerRoutes);
+router.use('/rentals', rentalRoutes);
+router.use('/payments', paymentRoutes);
+router.use('/hr', hrRoutes);
 
 module.exports = router;

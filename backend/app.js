@@ -23,18 +23,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
 
 // Routes
-app.use('/api', require('./routes'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/buildings', require('./routes/buildings')); 
-app.use('/api/units', require('./routes/units'));
+app.use('/api/units', require('./routes/units')); // UNCOMMENT THIS LINE
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/rentals', require('./routes/rentals'));
 app.use('/api/payments', require('./routes/payments')); 
-app.use('/api/departments', require('./routes/departments')); // Add this
-app.use('/api/employees', require('./routes/employees')); // Add this
-app.use('/api/salaries', require('./routes/salaries')); // Add this
-app.use('/api/hr', require('./routes/hr')); // Add this line
+app.use('/api/hr', require('./routes/hr'));
 
 // Health check
 app.get('/api/health', (req, res) => {
