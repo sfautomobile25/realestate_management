@@ -27,6 +27,10 @@ const UtilityType = sequelize.define('UtilityType', {
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  is_rent: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'utility_types',

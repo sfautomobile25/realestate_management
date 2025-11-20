@@ -164,15 +164,22 @@ const syncDatabase = async () => {
     await sequelize.sync({ force: false });
     console.log('✅ Database synced successfully');
     
-    // Create default utility types if they don't exist
-    const utilityTypes = [
-      { name: 'Lift Maintenance', description: 'Monthly lift maintenance fee', default_amount: 500, calculation_type: 'fixed' },
-      { name: 'Generator Maintenance', description: 'Monthly generator maintenance fee', default_amount: 300, calculation_type: 'fixed' },
-      { name: 'Common Area Maintenance', description: 'Common area cleaning and maintenance', default_amount: 200, calculation_type: 'fixed' },
-      { name: 'Security Service', description: 'Security guard services', default_amount: 400, calculation_type: 'fixed' },
-      { name: 'Water Charge', description: 'Water consumption charge', default_amount: 2, calculation_type: 'per_sqft' },
-      { name: 'Service Charge', description: 'General service charge', default_amount: 5, calculation_type: 'percentage_of_rent' }
-    ];
+    // In the syncDatabase function, update utility types:
+const utilityTypes = [
+  { 
+    name: 'Monthly Rent', 
+    description: 'Monthly rental payment', 
+    default_amount: 50000, 
+    calculation_type: 'fixed',
+    is_rent: true
+  },
+  { name: 'Lift Maintenance', description: 'Monthly lift maintenance fee', default_amount: 500, calculation_type: 'fixed' },
+  { name: 'Generator Maintenance', description: 'Monthly generator maintenance fee', default_amount: 300, calculation_type: 'fixed' },
+  { name: 'Common Area Maintenance', description: 'Common area cleaning and maintenance', default_amount: 200, calculation_type: 'fixed' },
+  { name: 'Security Service', description: 'Security guard services', default_amount: 400, calculation_type: 'fixed' },
+  { name: 'Water Charge', description: 'Water consumption charge', default_amount: 2, calculation_type: 'per_sqft' },
+  { name: 'Service Charge', description: 'General service charge', default_amount: 5, calculation_type: 'percentage_of_rent' }
+];
 
     for (const utilType of utilityTypes) {
       await UtilityType.findOrCreate({

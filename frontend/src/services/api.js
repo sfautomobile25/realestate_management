@@ -153,18 +153,27 @@ export const customerAPI = {
 
 export const rentalAPI = {
   getAll: () => api.get('/rentals'),
-  getById: (id) => api.get(`/rentals/${id}`),
   create: (rentalData) => api.post('/rentals', rentalData),
   generateBills: (rentalId, month) => api.post(`/rentals/${rentalId}/generate-bills`, { month }),
   getFinancialSummary: (rentalId) => api.get(`/rentals/${rentalId}/financial-summary`),
+  update: (id, rentalData) => api.put(`/rentals/${id}`, rentalData),
+  delete: (id) => api.delete(`/rentals/${id}`)
 };
 
 export const paymentAPI = {
-  getAll: () => api.get('/payments'),
-  create: (paymentData) => api.post('/payments', paymentData),
-  getSummary: (startDate, endDate) => api.get('/payments/summary', { 
-    params: { startDate, endDate } 
-  }),
+  create: (paymentData) => api.post('/payments', paymentData)
 };
+
+export const utilityAPI = {
+  // Utility Types
+  getUtilityTypes: () => api.get('/utilities/types'),
+  createUtilityType: (typeData) => api.post('/utilities/types', typeData),
+  updateUtilityType: (id, typeData) => api.put(`/utilities/types/${id}`, typeData),
+  deleteUtilityType: (id) => api.delete(`/utilities/types/${id}`),
+  
+  // Utility Bills
+  getRentalBills: (rentalId) => api.get(`/utilities/bills/${rentalId}`)
+};
+
 
 export default api;

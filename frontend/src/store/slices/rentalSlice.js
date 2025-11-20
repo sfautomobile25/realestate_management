@@ -3,17 +3,44 @@ import { rentalAPI } from '../../services/api';
 
 export const fetchRentals = createAsyncThunk(
   'rentals/fetchRentals',
-  async () => {
-    const response = await rentalAPI.getAll();
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await rentalAPI.getAll();
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+
+
+export const updateRental = createAsyncThunk(
+  'rentals/updateRental',
+  async ({ id, rentalData }) => {
+    const response = await rentalAPI.update(id, rentalData);
     return response.data;
   }
 );
 
+export const deleteRental = createAsyncThunk(
+  'rentals/deleteRental',
+  async (id) => {
+    await rentalAPI.delete(id);
+    return id;
+  }
+);
+
+
 export const createRental = createAsyncThunk(
   'rentals/createRental',
-  async (rentalData) => {
-    const response = await rentalAPI.create(rentalData);
-    return response.data;
+  async (rentalData, { rejectWithValue }) => {
+    try {
+      const response = await rentalAPI.create(rentalData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
   }
 );
 
@@ -67,9 +94,27 @@ const rentalSlice = createSlice({
       .addCase(createRental.fulfilled, (state, action) => {
         state.items.push(action.payload);
       })
+      .addCase(createRental.rejected, (state, action) => {
+      state.error = action.payload;
+    })
       .addCase(getFinancialSummary.fulfilled, (state, action) => {
         state.financialSummary = action.payload;
-      });
+      })
+      .addCase(updateRental.fulfilled, (state, action) => {
+      const index = state.items.findIndex(item => item.id === action.payload.id);
+      if (index !== -1) {
+        state.items[index] = action.payload;
+      }
+    })
+    .addCase(deleteRental.fulfilled, (state, action) => {
+      state.items = state.items.filter(item => item.id !== action.payload);
+    })
+    .addCase(updateRental.rejected, (state, action) => {
+      state.error = action.error.message;
+    })
+    .addCase(deleteRental.rejected, (state, action) => {
+      state.error = action.error.message;
+    });
   }
 });
 

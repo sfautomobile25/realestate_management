@@ -24,17 +24,22 @@ const Payment = sequelize.define('Payment', {
     type: DataTypes.STRING(100),
     allowNull: true
   },
-  payment_type: {
-    type: DataTypes.ENUM('rent', 'utility', 'deposit', 'late_fee', 'other'),
-    allowNull: false
+  receipt_number: {
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    unique: true
   },
   notes: {
     type: DataTypes.TEXT,
     allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('completed', 'pending', 'failed'),
+    type: DataTypes.ENUM('pending', 'completed', 'failed'),
     defaultValue: 'completed'
+  },
+  payment_type: {
+    type: DataTypes.ENUM('rent', 'utility', 'security_deposit', 'other'),
+    defaultValue: 'rent'
   }
 }, {
   tableName: 'payments',

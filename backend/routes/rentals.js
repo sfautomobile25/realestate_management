@@ -108,20 +108,35 @@ router.post('/:id/generate-bills', async (req, res) => {
     }
 
     const { UtilityType } = require('../models');
-    const utilityTypes = await UtilityType.findAll({ where: { is_active: true } });
+    const utilityTypes = await UtilityType.findAll({ where: { is_active: true 
+      
+    } });
 
     const bills = [];
 
-    // Create rent bill
-    bills.push({
-      rental_id: rental.id,
-      utility_type_id: null, // Rent is not a utility type
-      amount: rental.monthly_rent,
-      billing_month: billingDate,
-      due_date: dueDate,
-      status: 'pending',
-      notes: 'Monthly Rent'
-    });
+  for (const utilType of utilityTypes) {
+  let amount = utilType.default_amount;
+
+  // Calculate amount based on type
+  if (utilType.calculation_type === 'per_sqft' && rental.Unit.size_sqft) {
+    amount = utilType.default_amount * rental.Unit.size_sqft;
+  } else if (utilType.calculation_type === 'percentage_of_rent') {
+    // Find rent amount for percentage calculation
+    const rentType = utilityTypes.find(ut => ut.is_rent);
+    const rentAmount = rentType ? rentType.default_amount : rental.monthly_rent;
+    amount = (utilType.default_amount / 100) * rentAmount;
+  }
+
+  bills.push({
+    rental_id: rental.id,
+    utility_type_id: utilType.id,
+    amount: amount,
+    billing_month: billingDate,
+    due_date: dueDate,
+    status: 'pending',
+    notes: `${utilType.name} - ${utilType.description}`
+  });
+}
 
     // Create utility bills
     for (const utilType of utilityTypes) {
@@ -199,5 +214,47 @@ router.get('/:id/financial-summary', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// Get pending bills for rental
+router.get('/:id/pending-bills', async (req, res) => {
+  try {
+    const bills = await UtilityBill.findAll({
+      where: { 
+        rental_id: req.params.id,
+        status: 'pending'
+      },
+      include: [{
+        model: UtilityType,
+        as: 'UtilityType'
+      }],
+      order: [['due_date', 'ASC']]
+    });
+    res.json(bills);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update utility bill amount
+router.put('/bills/:billId', async (req, res) => {
+  try {
+    const { amount, notes } = req.body;
+    const bill = await UtilityBill.findByPk(req.params.billId);
+
+    if (!bill) {
+      return res.status(404).json({ message: 'Bill not found' });
+    }
+
+    await bill.update({
+      amount: amount !== undefined ? parseFloat(amount) : bill.amount,
+      notes: notes !== undefined ? notes : bill.notes
+    });
+
+    res.json(bill);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 
 module.exports = router;

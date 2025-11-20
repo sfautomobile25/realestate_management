@@ -24,9 +24,20 @@ import {
   Card,
   CardContent,
   Tabs,
-  Tab
+  Tab,
+  CardActions,
+  Divider
 } from '@mui/material';
-import { Add, Edit, Receipt, Payment, CalendarToday } from '@mui/icons-material';
+import { 
+  Add, 
+  Edit, 
+  Receipt, 
+  Payment, 
+  CalendarToday,
+  Print,
+  Visibility,
+  Delete
+} from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -35,10 +46,13 @@ import {
   fetchRentals,
   createRental,
   generateMonthlyBills,
-  getFinancialSummary
+  getFinancialSummary,
+  updateRental,
+  deleteRental
 } from '../../store/slices/rentalSlice';
 import { fetchCustomers } from '../../store/slices/customerSlice';
 import { fetchUnits } from '../../store/slices/unitSlice';
+import { processPayment } from '../../store/slices/paymentSlice';
 
 const Rentals = () => {
   const dispatch = useDispatch();
@@ -49,6 +63,8 @@ const Rentals = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
   const [openBillingDialog, setOpenBillingDialog] = useState(false);
+  const [openPaymentDialog, setOpenPaymentDialog] = useState(false);
+  const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
   const [selectedRental, setSelectedRental] = useState(null);
   const [billingMonth, setBillingMonth] = useState(new Date());
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -64,6 +80,13 @@ const Rentals = () => {
     grace_period_days: 5
   });
 
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    payment_method: 'cash',
+    reference_number: '',
+    notes: ''
+  });
+
   useEffect(() => {
     dispatch(fetchRentals());
     dispatch(fetchCustomers());
@@ -76,6 +99,7 @@ const Rentals = () => {
     }
   }, [selectedRental, dispatch]);
 
+  // Enhanced dialog handlers
   const handleOpenDialog = (rental = null) => {
     if (rental) {
       setSelectedRental(rental);
@@ -84,10 +108,10 @@ const Rentals = () => {
         tenant_id: rental.tenant_id,
         monthly_rent: rental.monthly_rent,
         security_deposit: rental.security_deposit,
-        lease_start: rental.lease_start.split('T')[0],
-        lease_end: rental.lease_end.split('T')[0],
-        late_fee_percentage: rental.late_fee_percentage,
-        grace_period_days: rental.grace_period_days
+        lease_start: rental.lease_start ? rental.lease_start.split('T')[0] : '',
+        lease_end: rental.lease_end ? rental.lease_end.split('T')[0] : '',
+        late_fee_percentage: rental.late_fee_percentage || 5,
+        grace_period_days: rental.grace_period_days || 5
       });
     } else {
       setSelectedRental(null);
@@ -111,6 +135,17 @@ const Rentals = () => {
     setOpenBillingDialog(true);
   };
 
+  const handleOpenPaymentDialog = (rental) => {
+    setSelectedRental(rental);
+    setPaymentForm({
+      amount: rental.monthly_rent || '',
+      payment_method: 'cash',
+      reference_number: '',
+      notes: ''
+    });
+    setOpenPaymentDialog(true);
+  };
+
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setSelectedRental(null);
@@ -120,10 +155,19 @@ const Rentals = () => {
     setOpenBillingDialog(false);
   };
 
+  const handleClosePaymentDialog = () => {
+    setOpenPaymentDialog(false);
+  };
+
+  // Enhanced submit handlers
   const handleSubmit = async () => {
     try {
       if (selectedRental) {
-        // Update logic here
+        await dispatch(updateRental({ 
+          id: selectedRental.id, 
+          rentalData: formData 
+        })).unwrap();
+        setSnackbar({ open: true, message: 'Rental updated successfully', severity: 'success' });
       } else {
         await dispatch(createRental(formData)).unwrap();
         setSnackbar({ open: true, message: 'Rental agreement created successfully', severity: 'success' });
@@ -131,7 +175,7 @@ const Rentals = () => {
       handleCloseDialog();
       dispatch(fetchRentals());
     } catch (error) {
-      setSnackbar({ open: true, message: 'Operation failed', severity: 'error' });
+      setSnackbar({ open: true, message: error.message || 'Operation failed', severity: 'error' });
     }
   };
 
@@ -147,7 +191,41 @@ const Rentals = () => {
       handleCloseBillingDialog();
       dispatch(fetchRentals());
     } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to generate bills', severity: 'error' });
+      setSnackbar({ open: true, message: error.message || 'Failed to generate bills', severity: 'error' });
+    }
+  };
+
+  const handleProcessPayment = async () => {
+    try {
+      const paymentData = {
+        rental_id: selectedRental.id,
+        customer_id: selectedRental.tenant_id,
+        amount: parseFloat(paymentForm.amount),
+        payment_method: paymentForm.payment_method,
+        reference_number: paymentForm.reference_number,
+        notes: paymentForm.notes,
+        payment_type: 'rent'
+      };
+
+      const result = await dispatch(processPayment(paymentData)).unwrap();
+      setSnackbar({ open: true, message: 'Payment processed successfully', severity: 'success' });
+      handleClosePaymentDialog();
+      setOpenReceiptDialog(true);
+      dispatch(fetchRentals());
+    } catch (error) {
+      setSnackbar({ open: true, message: error.message || 'Payment failed', severity: 'error' });
+    }
+  };
+
+  const handleDeleteRental = async (rentalId) => {
+    if (window.confirm('Are you sure you want to delete this rental agreement?')) {
+      try {
+        await dispatch(deleteRental(rentalId)).unwrap();
+        setSnackbar({ open: true, message: 'Rental deleted successfully', severity: 'success' });
+        dispatch(fetchRentals());
+      } catch (error) {
+        setSnackbar({ open: true, message: error.message || 'Delete failed', severity: 'error' });
+      }
     }
   };
 
@@ -162,6 +240,14 @@ const Rentals = () => {
 
   const availableUnits = units.filter(unit => unit.status === 'available');
 
+  // Calculate statistics
+  const stats = {
+    totalRentals: rentals.length,
+    activeRentals: rentals.filter(r => r.status === 'active').length,
+    totalMonthlyRent: rentals.reduce((sum, rental) => sum + parseFloat(rental.monthly_rent || 0), 0),
+    pendingPayments: rentals.filter(r => r.status === 'active').length
+  };
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Box>
@@ -175,6 +261,49 @@ const Rentals = () => {
             New Rental Agreement
           </Button>
         </Box>
+
+        {/* Statistics Cards */}
+        <Grid container spacing={3} mb={4}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  Total Rentals
+                </Typography>
+                <Typography variant="h4" color="primary.main">
+                  {stats.totalRentals}
+                </Typography>
+                <Typography variant="body2">
+                  {stats.activeRentals} active
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  Monthly Revenue
+                </Typography>
+                <Typography variant="h4" color="success.main">
+                  ${stats.totalMonthlyRent.toLocaleString()}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  Pending Payments
+                </Typography>
+                <Typography variant="h4" color="warning.main">
+                  {stats.pendingPayments}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
 
         <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
           <Tab label="All Rentals" />
@@ -200,10 +329,6 @@ const Rentals = () => {
                   <TableRow 
                     key={rental.id}
                     hover
-                    onClick={() => {
-                      setSelectedRental(rental);
-                      setActiveTab(1);
-                    }}
                     sx={{ cursor: 'pointer' }}
                   >
                     <TableCell>
@@ -225,7 +350,17 @@ const Rentals = () => {
                         size="small"
                       />
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell>
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setSelectedRental(rental);
+                          setActiveTab(1);
+                        }}
+                        title="View Details"
+                      >
+                        <Visibility />
+                      </IconButton>
                       <IconButton
                         size="small"
                         onClick={() => handleOpenBillingDialog(rental)}
@@ -235,9 +370,25 @@ const Rentals = () => {
                       </IconButton>
                       <IconButton
                         size="small"
+                        onClick={() => handleOpenPaymentDialog(rental)}
+                        title="Process Payment"
+                      >
+                        <Payment />
+                      </IconButton>
+                      <IconButton
+                        size="small"
                         onClick={() => handleOpenDialog(rental)}
+                        title="Edit Rental"
                       >
                         <Edit />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteRental(rental.id)}
+                        title="Delete Rental"
+                        color="error"
+                      >
+                        <Delete />
                       </IconButton>
                     </TableCell>
                   </TableRow>
@@ -257,16 +408,30 @@ const Rentals = () => {
                 <Typography color="textSecondary">
                   Tenant: {selectedRental.Tenant?.first_name} {selectedRental.Tenant?.last_name}
                 </Typography>
+                <Typography color="textSecondary">
+                  Phone: {selectedRental.Tenant?.phone} | Email: {selectedRental.Tenant?.email}
+                </Typography>
               </Box>
-              <Button
-                variant="outlined"
-                startIcon={<Receipt />}
-                onClick={() => handleOpenBillingDialog(selectedRental)}
-              >
-                Generate Bills
-              </Button>
+              <Box>
+                <Button
+                  variant="outlined"
+                  startIcon={<Receipt />}
+                  onClick={() => handleOpenBillingDialog(selectedRental)}
+                  sx={{ mr: 1 }}
+                >
+                  Generate Bills
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<Payment />}
+                  onClick={() => handleOpenPaymentDialog(selectedRental)}
+                >
+                  Process Payment
+                </Button>
+              </Box>
             </Box>
 
+            {/* Financial Summary */}
             {financialSummary && (
               <Grid container spacing={3} mb={4}>
                 <Grid item xs={12} sm={6} md={3}>
@@ -330,6 +495,7 @@ const Rentals = () => {
                   <TableRow>
                     <TableCell>Bill Type</TableCell>
                     <TableCell>Amount</TableCell>
+                    <TableCell>Billing Month</TableCell>
                     <TableCell>Due Date</TableCell>
                     <TableCell>Status</TableCell>
                   </TableRow>
@@ -342,6 +508,9 @@ const Rentals = () => {
                       </TableCell>
                       <TableCell>${bill.amount}</TableCell>
                       <TableCell>
+                        {new Date(bill.billing_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      </TableCell>
+                      <TableCell>
                         {new Date(bill.due_date).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
@@ -353,13 +522,71 @@ const Rentals = () => {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {(!selectedRental.UtilityBills || selectedRental.UtilityBills.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">
+                        <Typography color="textSecondary" sx={{ py: 2 }}>
+                          No bills generated yet. Click "Generate Bills" to create monthly bills.
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* Payment History Section */}
+            <Typography variant="h6" gutterBottom>
+              Payment History
+            </Typography>
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Receipt No</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Amount</TableCell>
+                    <TableCell>Method</TableCell>
+                    <TableCell>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {selectedRental.Payments?.map((payment) => (
+                    <TableRow key={payment.id}>
+                      <TableCell>{payment.receipt_number}</TableCell>
+                      <TableCell>
+                        {new Date(payment.payment_date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>${payment.amount}</TableCell>
+                      <TableCell>
+                        <Chip label={payment.payment_method} size="small" />
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={payment.status} 
+                          color={payment.status === 'completed' ? 'success' : 'warning'}
+                          size="small"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(!selectedRental.Payments || selectedRental.Payments.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">
+                        <Typography color="textSecondary" sx={{ py: 2 }}>
+                          No payments recorded yet.
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
           </Box>
         )}
 
-        {/* Rental Agreement Form Dialog */}
+        {/* Dialogs remain the same as before but enhanced */}
+        {/* Rental Agreement Dialog */}
         <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
           <DialogTitle>
             {selectedRental ? 'Edit Rental Agreement' : 'New Rental Agreement'}
@@ -434,22 +661,6 @@ const Rentals = () => {
                 InputLabelProps={{ shrink: true }}
                 required
               />
-              <TextField
-                fullWidth
-                label="Late Fee Percentage"
-                type="number"
-                value={formData.late_fee_percentage}
-                onChange={(e) => setFormData({ ...formData, late_fee_percentage: e.target.value })}
-                margin="normal"
-              />
-              <TextField
-                fullWidth
-                label="Grace Period (Days)"
-                type="number"
-                value={formData.grace_period_days}
-                onChange={(e) => setFormData({ ...formData, grace_period_days: e.target.value })}
-                margin="normal"
-              />
             </Box>
           </DialogContent>
           <DialogActions>
@@ -483,6 +694,64 @@ const Rentals = () => {
             <Button onClick={handleCloseBillingDialog}>Cancel</Button>
             <Button onClick={handleGenerateBills} variant="contained" startIcon={<Receipt />}>
               Generate Bills
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Payment Dialog */}
+        <Dialog open={openPaymentDialog} onClose={handleClosePaymentDialog} maxWidth="sm" fullWidth>
+          <DialogTitle>
+            Process Payment
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 2 }}>
+              <Typography gutterBottom>
+                Payment for {selectedRental?.Tenant?.first_name} {selectedRental?.Tenant?.last_name}
+              </Typography>
+              <TextField
+                fullWidth
+                label="Amount"
+                type="number"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                margin="normal"
+                required
+              />
+              <TextField
+                fullWidth
+                select
+                label="Payment Method"
+                value={paymentForm.payment_method}
+                onChange={(e) => setPaymentForm({ ...paymentForm, payment_method: e.target.value })}
+                margin="normal"
+              >
+                <MenuItem value="cash">Cash</MenuItem>
+                <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
+                <MenuItem value="check">Check</MenuItem>
+                <MenuItem value="online">Online</MenuItem>
+              </TextField>
+              <TextField
+                fullWidth
+                label="Reference Number"
+                value={paymentForm.reference_number}
+                onChange={(e) => setPaymentForm({ ...paymentForm, reference_number: e.target.value })}
+                margin="normal"
+              />
+              <TextField
+                fullWidth
+                label="Notes"
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                margin="normal"
+                multiline
+                rows={2}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleClosePaymentDialog}>Cancel</Button>
+            <Button onClick={handleProcessPayment} variant="contained" startIcon={<Payment />}>
+              Process Payment
             </Button>
           </DialogActions>
         </Dialog>
