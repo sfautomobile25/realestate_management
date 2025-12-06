@@ -1,11 +1,39 @@
 import React, { useState } from 'react';
-import {Box,Drawer,AppBar,Toolbar,Typography,Divider,IconButton,List,ListItem,ListItemButton,ListItemIcon,ListItemText, Avatar, Menu, MenuItem} from '@mui/material';
-import {Menu as MenuIcon, Dashboard as DashboardIcon, Business as BusinessIcon, Home as HomeIcon,AccountCircle, Logout} from '@mui/icons-material';
+import {
+  Box,
+  Drawer,
+  AppBar,
+  Toolbar,
+  Typography,
+  Divider,
+  IconButton,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Avatar,
+  Menu,
+  MenuItem
+} from '@mui/material';
+import { 
+  Menu as MenuIcon, 
+  Dashboard as DashboardIcon, 
+  Business as BusinessIcon, 
+  Home as HomeIcon,
+  AccountCircle, 
+  Logout,
+  Apartment,
+  ManageAccounts,
+  Receipt,
+  People,
+  Payment,
+  AccountBalance  // ADDED
+} from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../../store/slices/authSlice';
-import {Apartment, ManageAccounts} from '@mui/icons-material';
-import {Receipt,People,  Payment } from '@mui/icons-material';
+
 const drawerWidth = 240;
 
 const menuItems = [
@@ -13,10 +41,11 @@ const menuItems = [
   { text: 'Projects', icon: <BusinessIcon />, path: '/projects' },
   { text: 'Buildings', icon: <Apartment />, path: '/buildings' },
   { text: 'Units', icon: <HomeIcon />, path: '/units' },
-  { text: 'Customers', icon: <People />, path: '/customers' }, // Add this
-  { text: 'Rentals', icon: <Receipt />, path: '/rentals' }, // Add this
-  { text: 'Payments', icon: <Payment />, path: '/payments' }, // Add this
+  { text: 'Customers', icon: <People />, path: '/customers' },
+  { text: 'Rentals', icon: <Receipt />, path: '/rentals' },
+  { text: 'Payments', icon: <Payment />, path: '/payments' },
   { text: 'HR Management', icon: <ManageAccounts />, path: '/hr' },
+  { text: 'Accounts', icon: <AccountBalance />, path: '/accounts' }, // NEW ITEM
 ];
 
 const Layout = ({ children }) => {

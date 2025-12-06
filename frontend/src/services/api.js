@@ -175,5 +175,12 @@ export const utilityAPI = {
   getRentalBills: (rentalId) => api.get(`/utilities/bills/${rentalId}`)
 };
 
+export const accountAPI = {
+  getBalance: (params = {}) => api.get('/accounts/balance', { params }),
+  createTransaction: (transactionData) => api.post('/accounts', transactionData),
+  getMonthlySummary: (params = {}) => api.get('/accounts/monthly-summary', { params }),
+  getAllTransactions: (params = {}) => api.get('/accounts', { params })
+};
+
 
 export default api;

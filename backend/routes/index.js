@@ -20,5 +20,6 @@ router.use('/customers', customerRoutes);
 router.use('/rentals', rentalRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/hr', hrRoutes);
+router.use('/accounts', require('./accounts')); // ADD THIS LINE
 
 module.exports = router;

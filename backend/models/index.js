@@ -13,6 +13,8 @@ const Department = require('./Department');
 const Salary = require('./Salary');
 const Attendance = require('./Attendance');
 const SalaryPayment = require('./SalaryPayment');
+const Account = require('./Account');
+const CashBalance = require('./CashBalance');
 
 // Define associations
 
@@ -228,5 +230,7 @@ module.exports = {
   Department,
   Salary,
   Attendance,  // Add this line
-  SalaryPayment  // Add this line
+  SalaryPayment,
+  Account,
+  CashBalance,
 };

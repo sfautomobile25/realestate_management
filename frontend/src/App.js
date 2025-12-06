@@ -18,6 +18,7 @@ import Rentals from './pages/Rentals/Rentals';
 import Payments from './pages/Payments/Payments';
 import Buildings from './pages/Buildings/Buildings'
 import HRManagement from './pages/HRManagement/HRManagement';
+import Accounts from './pages/Accounts/Accounts';
 
 const theme = createTheme({
   palette: {
@@ -85,6 +86,12 @@ function App() {
                 </Layout>
               </ProtectedRoute>
             } />
+            <Route path="/accounts" element=
+            {
+              <ProtectedRoute>
+                <Accounts />
+                </ProtectedRoute>
+              } />
             {/* Public routes */}
             <Route path="/login" element={
               <PublicRoute>
@@ -119,7 +126,6 @@ function App() {
                 </Layout>
               </ProtectedRoute>
             } />
-            
             {/* Default redirect */}
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

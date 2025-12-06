@@ -8,6 +8,7 @@ import rentalReducer from './slices/rentalSlice';
 import departmentReducer from './slices/departmentSlice';
 import employeeReducer from './slices/employeeSlice';
 import hrReducer from './slices/hrSlice'; // Add this line
+import accountReducer from './slices/accountSlice'; // ADD THIS LINE
 
 const store = configureStore({
   reducer: {
@@ -20,6 +21,7 @@ const store = configureStore({
     departments: departmentReducer,
     employees: employeeReducer,
     hr: hrReducer,
+    accounts: accountReducer, // ADD THIS LINE
   },
 });
 
