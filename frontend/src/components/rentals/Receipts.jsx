@@ -1,8 +1,18 @@
 import React from 'react';
-import { Box, Typography, Button, Divider, Paper } from '@mui/material';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Box,
+  Typography,
+  Divider,
+  Paper
+} from '@mui/material';
 import { Print } from '@mui/icons-material';
 
-const Receipt = ({ payment, onClose }) => {
+const Receipt = ({ payment, open, onClose }) => {
   const handlePrint = () => {
     const receiptContent = document.getElementById('receipt-content');
     const printWindow = window.open('', '_blank');
@@ -11,7 +21,7 @@ const Receipt = ({ payment, onClose }) => {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Receipt - ${payment.receipt_number}</title>
+          <title>Receipt - ${payment?.receipt_number}</title>
           <style>
             body { 
               font-family: Arial, sans-serif; 
@@ -74,43 +84,43 @@ const Receipt = ({ payment, onClose }) => {
             
             <div class="details">
               <div class="detail-row">
-                <strong>Receipt No:</strong> ${payment.receipt_number}
+                <strong>Receipt No:</strong> ${payment?.receipt_number}
               </div>
               <div class="detail-row">
-                <strong>Date:</strong> ${new Date(payment.payment_date).toLocaleDateString()}
+                <strong>Date:</strong> ${new Date(payment?.payment_date).toLocaleDateString()}
               </div>
               <div class="detail-row">
-                <strong>Time:</strong> ${new Date(payment.payment_date).toLocaleTimeString()}
+                <strong>Time:</strong> ${new Date(payment?.payment_date).toLocaleTimeString()}
               </div>
               <br>
               <div class="detail-row">
-                <strong>Customer:</strong> ${payment.Customer?.first_name} ${payment.Customer?.last_name}
+                <strong>Customer:</strong> ${payment?.Customer?.first_name} ${payment?.Customer?.last_name}
               </div>
-              ${payment.Rental ? `
+              ${payment?.Rental ? `
               <div class="detail-row">
-                <strong>Unit:</strong> ${payment.Rental.Unit?.unit_number} - ${payment.Rental.Unit?.Building?.name}
+                <strong>Unit:</strong> ${payment?.Rental?.Unit?.unit_number} - ${payment?.Rental?.Unit?.Building?.name}
               </div>
               ` : ''}
               <br>
               <div class="detail-row">
-                <strong>Amount:</strong> $${payment.amount}
+                <strong>Amount:</strong> $${payment?.amount}
               </div>
               <div class="detail-row">
-                <strong>Payment Method:</strong> ${payment.payment_method}
+                <strong>Payment Method:</strong> ${payment?.payment_method}
               </div>
-              ${payment.reference_number ? `
+              ${payment?.reference_number ? `
               <div class="detail-row">
-                <strong>Reference:</strong> ${payment.reference_number}
+                <strong>Reference:</strong> ${payment?.reference_number}
               </div>
               ` : ''}
-              ${payment.notes ? `
+              ${payment?.notes ? `
               <div class="detail-row">
-                <strong>Notes:</strong> ${payment.notes}
+                <strong>Notes:</strong> ${payment?.notes}
               </div>
               ` : ''}
             </div>
 
-            <Divider style={{margin: '20px 0'}} />
+            <div style="margin: 20px 0; border-top: 1px solid #000;"></div>
             
             <div class="footer">
               <div class="signature">
@@ -129,8 +139,10 @@ const Receipt = ({ payment, onClose }) => {
     printWindow.print();
   };
 
+  if (!payment) return null;
+
   return (
-    <Dialog open={!!payment} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Payment Receipt</DialogTitle>
       <DialogContent>
         <Paper id="receipt-content" sx={{ p: 3, border: '2px solid #000' }}>
@@ -156,25 +168,25 @@ const Receipt = ({ payment, onClose }) => {
           <Box sx={{ mb: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
               <Typography fontWeight="bold">Receipt No:</Typography>
-              <Typography>{payment?.receipt_number}</Typography>
+              <Typography>{payment.receipt_number}</Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
               <Typography fontWeight="bold">Date:</Typography>
-              <Typography>{new Date(payment?.payment_date).toLocaleDateString()}</Typography>
+              <Typography>{new Date(payment.payment_date).toLocaleDateString()}</Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
               <Typography fontWeight="bold">Time:</Typography>
-              <Typography>{new Date(payment?.payment_date).toLocaleTimeString()}</Typography>
+              <Typography>{new Date(payment.payment_date).toLocaleTimeString()}</Typography>
             </Box>
             
             <Divider sx={{ my: 2 }} />
             
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
               <Typography fontWeight="bold">Customer:</Typography>
-              <Typography>{payment?.Customer?.first_name} {payment?.Customer?.last_name}</Typography>
+              <Typography>{payment.Customer?.first_name} {payment.Customer?.last_name}</Typography>
             </Box>
             
-            {payment?.Rental && (
+            {payment.Rental && (
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography fontWeight="bold">Unit:</Typography>
                 <Typography>
@@ -188,20 +200,20 @@ const Receipt = ({ payment, onClose }) => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
               <Typography fontWeight="bold">Amount:</Typography>
               <Typography variant="h6" color="primary">
-                $${payment?.amount}
+                $${payment.amount}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
               <Typography fontWeight="bold">Payment Method:</Typography>
-              <Typography>{payment?.payment_method}</Typography>
+              <Typography>{payment.payment_method}</Typography>
             </Box>
-            {payment?.reference_number && (
+            {payment.reference_number && (
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography fontWeight="bold">Reference:</Typography>
                 <Typography>{payment.reference_number}</Typography>
               </Box>
             )}
-            {payment?.notes && (
+            {payment.notes && (
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography fontWeight="bold">Notes:</Typography>
                 <Typography>{payment.notes}</Typography>

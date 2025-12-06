@@ -53,6 +53,7 @@ import {
 import { fetchCustomers } from '../../store/slices/customerSlice';
 import { fetchUnits } from '../../store/slices/unitSlice';
 import { processPayment } from '../../store/slices/paymentSlice';
+import Receipts from '../../components/rentals/Receipts';
 
 const Rentals = () => {
   const dispatch = useDispatch();
@@ -68,6 +69,9 @@ const Rentals = () => {
   const [selectedRental, setSelectedRental] = useState(null);
   const [billingMonth, setBillingMonth] = useState(new Date());
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [currentPayment, setCurrentPayment] = useState(null);
+
+
 
   const [formData, setFormData] = useState({
     unit_id: '',
@@ -195,27 +199,28 @@ const Rentals = () => {
     }
   };
 
-  const handleProcessPayment = async () => {
-    try {
-      const paymentData = {
-        rental_id: selectedRental.id,
-        customer_id: selectedRental.tenant_id,
-        amount: parseFloat(paymentForm.amount),
-        payment_method: paymentForm.payment_method,
-        reference_number: paymentForm.reference_number,
-        notes: paymentForm.notes,
-        payment_type: 'rent'
-      };
+const handleProcessPayment = async () => {
+  try {
+    const paymentData = {
+      rental_id: selectedRental.id,
+      customer_id: selectedRental.tenant_id,
+      amount: parseFloat(paymentForm.amount),
+      payment_method: paymentForm.payment_method,
+      reference_number: paymentForm.reference_number,
+      notes: paymentForm.notes,
+      payment_type: 'rent'
+    };
 
-      const result = await dispatch(processPayment(paymentData)).unwrap();
-      setSnackbar({ open: true, message: 'Payment processed successfully', severity: 'success' });
-      handleClosePaymentDialog();
-      setOpenReceiptDialog(true);
-      dispatch(fetchRentals());
-    } catch (error) {
-      setSnackbar({ open: true, message: error.message || 'Payment failed', severity: 'error' });
-    }
-  };
+    const result = await dispatch(processPayment(paymentData)).unwrap();
+    setCurrentPayment(result.payment); // Store the payment for receipt
+    setSnackbar({ open: true, message: 'Payment processed successfully', severity: 'success' });
+    handleClosePaymentDialog();
+    setOpenReceiptDialog(true); // Open receipt dialog
+    dispatch(fetchRentals());
+  } catch (error) {
+    setSnackbar({ open: true, message: error.message || 'Payment failed', severity: 'error' });
+  }
+};
 
   const handleDeleteRental = async (rentalId) => {
     if (window.confirm('Are you sure you want to delete this rental agreement?')) {
@@ -769,6 +774,14 @@ const Rentals = () => {
           </Alert>
         </Snackbar>
       </Box>
+      <Receipt 
+        payment={currentPayment}
+        open={openReceiptDialog}
+        onClose={() => {
+          setOpenReceiptDialog(false);
+          setCurrentPayment(null);
+        }}
+      />
     </LocalizationProvider>
   );
 };
