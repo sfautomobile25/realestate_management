@@ -4,6 +4,83 @@ const { Op } = require('sequelize');
 const router = express.Router();
 const sequelize = require('../config/database');
 
+// Helper function to generate voucher number
+const generateVoucherNumber = (type) => {
+  const prefix = type === 'credit' ? 'CV' : type === 'debit' ? 'DV' : 'JV';
+  const date = new Date();
+  const year = date.getFullYear().toString().slice(-2);
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}${year}${month}${random}`;
+};
+// Helper function to convert number to Bangla words
+const numberToBanglaWords = (num) => {
+  const units = ['', 'এক', 'দুই', 'তিন', 'চার', 'পাঁচ', 'ছয়', 'সাত', 'আট', 'নয়'];
+  const tens = ['', 'দশ', 'বিশ', 'ত্রিশ', 'চল্লিশ', 'পঞ্চাশ', 'ষাট', 'সত্তর', 'আশি', 'নব্বই'];
+  const hundreds = ['', 'একশ', 'দুইশ', 'তিনশ', 'চারশ', 'পাঁচশ', 'ছয়শ', 'সাতশ', 'আটশ', 'নয়শ'];
+  
+  let n = Math.floor(num);
+  let words = '';
+  
+  if (n >= 100) {
+    words += hundreds[Math.floor(n / 100)] + ' ';
+    n %= 100;
+  }
+  
+  if (n >= 10) {
+    words += tens[Math.floor(n / 10)] + ' ';
+    n %= 10;
+  }
+  
+  if (n > 0) {
+    words += units[n] + ' ';
+  }
+  
+  words += 'টাকা';
+  
+  // Add paisa if any
+  const paisa = Math.round((num - Math.floor(num)) * 100);
+  if (paisa > 0) {
+    words += ' ' + paisa + ' পয়সা';
+  }
+  
+  return words.trim();
+};
+
+// Set opening balance
+router.post('/opening-balance', async (req, res) => {
+  try {
+    const { date, amount } = req.body;
+    
+    if (!date || !amount) {
+      return res.status(400).json({ message: 'Date and amount are required' });
+    }
+    
+    // Check if opening balance already exists for this date
+    const existingBalance = await CashBalance.findOne({
+      where: { date }
+    });
+    
+    if (existingBalance) {
+      return res.status(400).json({ message: 'Opening balance already set for this date' });
+    }
+    
+    const cashBalance = await CashBalance.create({
+      date,
+      opening_balance: parseFloat(amount),
+      cash_in: 0,
+      cash_out: 0,
+      closing_balance: parseFloat(amount),
+      bank_balance: 0,
+      mobile_banking_balance: 0
+    });
+    
+    res.status(201).json(cashBalance);
+  } catch (error) {
+    console.error('Error setting opening balance:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
 // Get cash balance summary
 router.get('/balance', async (req, res) => {
   try {
@@ -71,32 +148,40 @@ router.get('/balance', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
-
-// Create account transaction
+// Create account transaction with voucher
 router.post('/', async (req, res) => {
   const transaction = await sequelize.transaction();
   
   try {
-    const { date, description, type, category, amount, payment_method, reference_number, notes } = req.body;
+    const { date, name, description, type, category, amount, payment_method, reference_number, notes } = req.body;
     
     // Validate required fields
-    if (!description || !type || !category || !amount) {
+    if (!name || !description || !type || !category || !amount) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
     
+    // Generate voucher details
+    const voucherType = type === 'income' ? 'credit' : 'debit';
+    const voucherNumber = generateVoucherNumber(voucherType);
+    const amountInBangla = numberToBanglaWords(parseFloat(amount));
+    
     // Create account transaction
     const account = await Account.create({
+      voucher_number: voucherNumber,
+      voucher_type: voucherType,
       date: date || new Date(),
+      name,
       description,
       type,
       category,
       amount: parseFloat(amount),
       payment_method: payment_method || 'cash',
       reference_number,
-      notes
+      notes,
+      amount_in_bangla: amountInBangla
     }, { transaction });
     
-    // Update cash balance for the day
+    // Update cash balance
     const transactionDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     
     let cashBalance = await CashBalance.findOne({
@@ -116,14 +201,14 @@ router.post('/', async (req, res) => {
         transaction
       });
       
+      const openingBalance = previousBalance ? previousBalance.closing_balance : 0;
+      
       cashBalance = await CashBalance.create({
         date: transactionDate,
-        opening_balance: previousBalance ? previousBalance.closing_balance : 0,
+        opening_balance: openingBalance,
         cash_in: type === 'income' ? parseFloat(amount) : 0,
         cash_out: type === 'expense' ? parseFloat(amount) : 0,
-        closing_balance: previousBalance ? 
-          previousBalance.closing_balance + 
-          (type === 'income' ? parseFloat(amount) : -parseFloat(amount)) : 
+        closing_balance: openingBalance + 
           (type === 'income' ? parseFloat(amount) : -parseFloat(amount)),
         bank_balance: 0,
         mobile_banking_balance: 0
@@ -143,7 +228,14 @@ router.post('/', async (req, res) => {
     
     await transaction.commit();
     
-    res.status(201).json(account);
+    // Get complete transaction with balance info
+    const completeTransaction = await Account.findByPk(account.id);
+    
+    res.status(201).json({
+      transaction: completeTransaction,
+      voucher_number: voucherNumber,
+      balance: cashBalance
+    });
   } catch (error) {
     await transaction.rollback();
     console.error('Error creating transaction:', error);
@@ -151,6 +243,105 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Get voucher receipt
+router.get('/voucher/:voucherNumber', async (req, res) => {
+  try {
+    const transaction = await Account.findOne({
+      where: { voucher_number: req.params.voucherNumber }
+    });
+    
+    if (!transaction) {
+      return res.status(404).json({ message: 'Voucher not found' });
+    }
+    
+    res.json(transaction);
+  } catch (error) {
+    console.error('Error fetching voucher:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Set opening balance
+router.post('/opening-balance', async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { date, amount, notes } = req.body;
+    
+    if (!amount) {
+      return res.status(400).json({ message: 'Amount is required' });
+    }
+    
+    const targetDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    
+    // Create opening balance transaction
+    const voucherNumber = generateVoucherNumber('credit');
+    const amountInWords = numberToBanglaWords(Math.floor(amount));
+    
+    const openingBalance = await Account.create({
+      voucher_number: voucherNumber,
+      voucher_type: 'credit',
+      date: targetDate,
+      name: 'Opening Balance',
+      description: 'Opening cash balance',
+      type: 'opening_balance',
+      category: 'Opening Balance',
+      amount: parseFloat(amount),
+      amount_in_words: amountInWords,
+      payment_method: 'cash',
+      notes: notes || 'Initial opening balance',
+      accountant_signature: 'Accountant',
+      ceo_signature: 'CEO/MD'
+    }, { transaction });
+    
+    // Create or update cash balance
+    let cashBalance = await CashBalance.findOne({
+      where: { date: targetDate },
+      transaction
+    });
+    
+    if (!cashBalance) {
+      cashBalance = await CashBalance.create({
+        date: targetDate,
+        opening_balance: parseFloat(amount),
+        cash_in: parseFloat(amount),
+        cash_out: 0,
+        closing_balance: parseFloat(amount),
+        bank_balance: 0,
+        mobile_banking_balance: 0
+      }, { transaction });
+    } else {
+      cashBalance.opening_balance = parseFloat(amount);
+      cashBalance.cash_in += parseFloat(amount);
+      cashBalance.closing_balance += parseFloat(amount);
+      await cashBalance.save({ transaction });
+    }
+    
+    await transaction.commit();
+    
+    res.status(201).json(openingBalance);
+  } catch (error) {
+    await transaction.rollback();
+    res.status(400).json({ message: error.message });
+  }
+});
+// Get today's opening balance
+router.get('/opening-balance/today', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const cashBalance = await CashBalance.findOne({
+      where: { date: today }
+    });
+    
+    res.json({
+      opening_balance: cashBalance ? cashBalance.opening_balance : 0,
+      date: today
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 // Get monthly summary
 router.get('/monthly-summary', async (req, res) => {
   try {

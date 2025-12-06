@@ -7,10 +7,23 @@ const Account = sequelize.define('Account', {
     primaryKey: true,
     autoIncrement: true
   },
+  voucher_number: {
+    type: DataTypes.STRING(50),
+    unique: true,
+    allowNull: false
+  },
+  voucher_type: {
+    type: DataTypes.ENUM('credit', 'debit', 'journal'),
+    allowNull: false
+  },
   date: {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW
+  },
+  name: {
+    type: DataTypes.STRING(255),
+    allowNull: false
   },
   description: {
     type: DataTypes.TEXT,
@@ -43,6 +56,10 @@ const Account = sequelize.define('Account', {
   status: {
     type: DataTypes.ENUM('pending', 'completed', 'cancelled'),
     defaultValue: 'completed'
+  },
+  amount_in_bangla: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   }
 }, {
   tableName: 'accounts',

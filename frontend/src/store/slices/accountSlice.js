@@ -38,6 +38,20 @@ export const fetchMonthlySummary = createAsyncThunk(
   }
 );
 
+export const setOpeningBalance = createAsyncThunk(
+  'accounts/setOpeningBalance',
+  async (balanceData, { rejectWithValue }) => {
+    try {
+      const response = await accountAPI.setOpeningBalance(balanceData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+
+
 const accountSlice = createSlice({
   name: 'accounts',
   initialState: {
@@ -76,7 +90,11 @@ const accountSlice = createSlice({
       })
       .addCase(fetchMonthlySummary.fulfilled, (state, action) => {
         state.monthlySummary = action.payload;
-      });
+      })
+    // Add to extraReducers
+    .addCase(setOpeningBalance.fulfilled, (state, action) => {
+    state.balance = action.payload;
+})
   }
 });
 

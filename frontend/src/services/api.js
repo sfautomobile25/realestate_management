@@ -178,6 +178,8 @@ export const utilityAPI = {
 export const accountAPI = {
   getBalance: (params = {}) => api.get('/accounts/balance', { params }),
   createTransaction: (transactionData) => api.post('/accounts', transactionData),
+  setOpeningBalance: (balanceData) => api.post('/accounts/opening-balance', balanceData),
+  getVoucher: (voucherNumber) => api.get(`/accounts/voucher/${voucherNumber}`),
   getMonthlySummary: (params = {}) => api.get('/accounts/monthly-summary', { params }),
   getAllTransactions: (params = {}) => api.get('/accounts', { params })
 };

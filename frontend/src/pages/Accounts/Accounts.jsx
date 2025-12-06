@@ -11,7 +11,6 @@ import {
   TableHead,
   TableRow,
   Chip,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -29,15 +28,14 @@ import {
   InputLabel,
   Select,
   Divider,
-  Tooltip,
   InputAdornment,
   LinearProgress,
-  Stack
+  Stack,
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import {
   Add,
-  Edit,
-  Delete,
   Receipt,
   AttachMoney,
   TrendingUp,
@@ -57,13 +55,25 @@ import {
   ArrowDownward,
   CalendarMonth,
   FilterList,
-  Refresh
+  Refresh,
+  Edit,
+  Visibility,
+  AccountCircle,
+  Business,
+  AddCircle,
+  RemoveCircle,
+  History
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchAccountBalance, createAccountTransaction, fetchMonthlySummary } from '../../store/slices/accountSlice';
+import { 
+  fetchAccountBalance, 
+  createAccountTransaction, 
+  fetchMonthlySummary,
+  setOpeningBalance 
+} from '../../store/slices/accountSlice';
 import Layout from '../../components/common/Layout';
 
 const Accounts = () => {
@@ -80,14 +90,15 @@ const Accounts = () => {
   
   const [activeTab, setActiveTab] = useState(0);
   const [openTransactionDialog, setOpenTransactionDialog] = useState(false);
-  const [openDateRangeDialog, setOpenDateRangeDialog] = useState(false);
+  const [openOpeningBalanceDialog, setOpenOpeningBalanceDialog] = useState(false);
+  const [openVoucherDialog, setOpenVoucherDialog] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const [transactionForm, setTransactionForm] = useState({
     date: new Date().toISOString().split('T')[0],
+    name: '',
     description: '',
     type: 'income',
     category: '',
@@ -95,6 +106,11 @@ const Accounts = () => {
     payment_method: 'cash',
     reference_number: '',
     notes: ''
+  });
+
+  const [openingBalanceForm, setOpeningBalanceForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    amount: ''
   });
 
   const incomeCategoriesList = [
@@ -121,15 +137,10 @@ const Accounts = () => {
     dispatch(fetchAccountBalance());
   }, [dispatch]);
 
-  useEffect(() => {
-    if (activeTab === 2) {
-      dispatch(fetchMonthlySummary());
-    }
-  }, [activeTab, dispatch]);
-
   const handleOpenTransactionDialog = (type = 'income') => {
     setTransactionForm({
       date: new Date().toISOString().split('T')[0],
+      name: '',
       description: '',
       type: type,
       category: type === 'income' ? 'Rental Income' : 'Salary Payment',
@@ -141,18 +152,61 @@ const Accounts = () => {
     setOpenTransactionDialog(true);
   };
 
+  const handleOpenOpeningBalanceDialog = () => {
+    setOpeningBalanceForm({
+      date: new Date().toISOString().split('T')[0],
+      amount: ''
+    });
+    setOpenOpeningBalanceDialog(true);
+  };
+
+  const handleViewVoucher = (transaction) => {
+    setSelectedVoucher(transaction);
+    setOpenVoucherDialog(true);
+  };
+
   const handleCloseTransactionDialog = () => {
     setOpenTransactionDialog(false);
   };
 
+  const handleCloseOpeningBalanceDialog = () => {
+    setOpenOpeningBalanceDialog(false);
+  };
+
+  const handleCloseVoucherDialog = () => {
+    setOpenVoucherDialog(false);
+    setSelectedVoucher(null);
+  };
+
   const handleSubmitTransaction = async () => {
     try {
-      await dispatch(createAccountTransaction(transactionForm)).unwrap();
-      setSnackbar({ open: true, message: 'Transaction recorded successfully', severity: 'success' });
+      const result = await dispatch(createAccountTransaction(transactionForm)).unwrap();
+      setSnackbar({ 
+        open: true, 
+        message: `Transaction recorded successfully. Voucher #: ${result.voucher_number}`, 
+        severity: 'success' 
+      });
       handleCloseTransactionDialog();
       dispatch(fetchAccountBalance());
+      
+      // Show voucher automatically
+      setTimeout(() => {
+        setSelectedVoucher(result.transaction);
+        setOpenVoucherDialog(true);
+      }, 500);
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to record transaction: ' + error.message, severity: 'error' });
+    }
+  };
+
+  const handleSetOpeningBalance = async () => {
+    try {
+      await dispatch(setOpeningBalance(openingBalanceForm)).unwrap();
+      setSnackbar({ open: true, message: 'Opening balance set successfully', severity: 'success' });
+      handleCloseOpeningBalanceDialog();
+      dispatch(fetchAccountBalance());
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to set opening balance: ' + error.message, severity: 'error' });
     }
   };
 
@@ -161,8 +215,203 @@ const Accounts = () => {
     dispatch(fetchAccountBalance(date.toISOString().split('T')[0]));
   };
 
-  const handleRefresh = () => {
-    dispatch(fetchAccountBalance());
+  const handlePrintVoucher = () => {
+    const printContent = document.getElementById('voucher-content');
+    const printWindow = window.open('', '_blank');
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Voucher - ${selectedVoucher?.voucher_number}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap');
+          body { 
+            font-family: 'Hind Siliguri', Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: white;
+          }
+          .voucher-container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            border: 2px solid #000; 
+            padding: 20px;
+            position: relative;
+          }
+          .company-header { 
+            text-align: center; 
+            background: #ff5722; 
+            color: white; 
+            padding: 15px; 
+            margin: -20px -20px 20px -20px;
+          }
+          .company-name { 
+            font-size: 24px; 
+            font-weight: bold; 
+            margin-bottom: 5px;
+          }
+          .company-address {
+            font-size: 14px;
+            margin-bottom: 5px;
+          }
+          .voucher-title { 
+            font-size: 20px; 
+            font-weight: bold;
+            margin: 20px 0;
+            text-align: center;
+            text-decoration: underline;
+          }
+          .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+          }
+          .details-table td {
+            padding: 8px;
+            border: 1px solid #000;
+          }
+          .details-table .label {
+            width: 30%;
+            background: #f5f5f5;
+            font-weight: bold;
+          }
+          .amount-in-words {
+            padding: 10px;
+            border: 1px solid #000;
+            margin: 20px 0;
+            background: #f9f9f9;
+            font-weight: bold;
+          }
+          .signature-section {
+            margin-top: 60px;
+            display: flex;
+            justify-content: space-between;
+            text-align: center;
+          }
+          .signature-box {
+            width: 45%;
+          }
+          .signature-line {
+            border-top: 1px solid #000;
+            margin-top: 40px;
+            padding-top: 5px;
+          }
+          .bangla-amount {
+            font-family: 'Hind Siliguri', sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+            color: #d32f2f;
+          }
+          @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+            .voucher-container { border: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="voucher-container">
+          <div class="company-header">
+            <div class="company-name">SHAHFARID REAL ESTATE COMPANY</div>
+            <div class="company-address">Ambika Sarak, Jhiltuli, Faridpur</div>
+            <div class="company-address">Phone: [Your Phone] | Email: [Your Email]</div>
+          </div>
+          
+          <div class="voucher-title">
+            ${selectedVoucher?.voucher_type === 'credit' ? 'CREDIT VOUCHER' : 'DEBIT VOUCHER'}
+          </div>
+          
+          <table class="details-table">
+            <tr>
+              <td class="label">Voucher No:</td>
+              <td><strong>${selectedVoucher?.voucher_number}</strong></td>
+            </tr>
+            <tr>
+              <td class="label">Date:</td>
+              <td>${new Date(selectedVoucher?.date).toLocaleDateString('bn-BD')}</td>
+            </tr>
+            <tr>
+              <td class="label">Name:</td>
+              <td>${selectedVoucher?.name}</td>
+            </tr>
+            <tr>
+              <td class="label">Description:</td>
+              <td>${selectedVoucher?.description}</td>
+            </tr>
+            <tr>
+              <td class="label">Category:</td>
+              <td>${selectedVoucher?.category}</td>
+            </tr>
+            <tr>
+              <td class="label">Payment Method:</td>
+              <td>${selectedVoucher?.payment_method}</td>
+            </tr>
+            ${selectedVoucher?.reference_number ? `
+            <tr>
+              <td class="label">Reference:</td>
+              <td>${selectedVoucher?.reference_number}</td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td class="label">Amount:</td>
+              <td><strong>৳${selectedVoucher?.amount?.toLocaleString()}</strong></td>
+            </tr>
+          </table>
+          
+          <div class="amount-in-words">
+            <strong>মোট টাকার পরিমাণ:</strong>
+            <div class="bangla-amount">${selectedVoucher?.amount_in_bangla || ''}</div>
+          </div>
+          
+          ${selectedVoucher?.notes ? `
+          <div style="margin: 20px 0; padding: 10px; border: 1px solid #000;">
+            <strong>Notes:</strong> ${selectedVoucher?.notes}
+          </div>
+          ` : ''}
+          
+          <div class="signature-section">
+            <div class="signature-box">
+              <div>প্রস্তুতকারী</div>
+              <div class="signature-line"></div>
+              <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
+            </div>
+            <div class="signature-box">
+              <div>পরীক্ষক</div>
+              <div class="signature-line"></div>
+              <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
+            </div>
+            <div class="signature-box">
+              <div>অনুমোদনকারী</div>
+              <div class="signature-line"></div>
+              <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
+            </div>
+            <div class="signature-box">
+              <div>প্রাপক স্বাক্ষর</div>
+              <div class="signature-line"></div>
+              <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 30px; font-size: 12px; color: #666;">
+            <div>----------------------------------</div>
+            <div>এই রসিদের নিচের অংশ কর্তন করুন</div>
+            <div>----------------------------------</div>
+          </div>
+          
+          <div style="margin-top: 40px; padding: 15px; border: 1px dashed #000; text-align: center;">
+            <div style="font-weight: bold;">সাধারণ নোটিশ</div>
+            <div style="font-size: 12px; margin-top: 5px;">
+              এই রসিদটি সঠিকভাবে সংরক্ষণ করুন। কোনো সমস্যা দেখা দিলে দ্রুত অফিসে যোগাযোগ করুন।
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.print();
   };
 
   const getCategoryColor = (category) => {
@@ -177,17 +426,10 @@ const Accounts = () => {
     return colors[category] || 'default';
   };
 
-  const getPaymentMethodIcon = (method) => {
-    const icons = {
-      'cash': <LocalAtm fontSize="small" />,
-      'bank': <AccountBalance fontSize="small" />,
-      'mobile_banking': <CreditCard fontSize="small" />,
-      'check': <Receipt fontSize="small" />
-    };
-    return icons[method] || <AttachMoney fontSize="small" />;
+  const getVoucherTypeColor = (type) => {
+    return type === 'credit' ? 'success' : 'error';
   };
 
-  // Calculate total cash in hand
   const totalCashInHand = balance ? balance.closing_balance : 0;
 
   if (loading && !balance) {
@@ -205,17 +447,8 @@ const Accounts = () => {
     <Layout>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
-          {/* Header with Gradient */}
-          <Paper 
-            elevation={3} 
-            sx={{ 
-              mb: 3, 
-              p: 3, 
-              borderRadius: 2,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white'
-            }}
-          >
+          {/* Header */}
+          <Paper elevation={3} sx={{ mb: 3, p: 3, borderRadius: 2, bgcolor: '#1a237e', color: 'white' }}>
             <Box display="flex" justifyContent="space-between" alignItems="center">
               <Box>
                 <Typography variant="h4" fontWeight="bold">
@@ -223,45 +456,113 @@ const Accounts = () => {
                   Accounts Management
                 </Typography>
                 <Typography variant="body1" sx={{ opacity: 0.9, mt: 1 }}>
-                  Track your cash flow, income, and expenses in real-time
+                  SHAHFARID REAL ESTATE COMPANY - Ambika Sarak, Jhiltuli, Faridpur
                 </Typography>
               </Box>
               <Stack direction="row" spacing={2}>
                 <Button
                   variant="outlined"
-                  startIcon={<DateRange />}
-                  onClick={() => setOpenDateRangeDialog(true)}
+                  startIcon={<History />}
+                  onClick={handleOpenOpeningBalanceDialog}
                   sx={{ color: 'white', borderColor: 'white', '&:hover': { borderColor: '#ccc' } }}
                 >
-                  Date Range
+                  Opening Balance
                 </Button>
                 <Button
                   variant="contained"
-                  startIcon={<Refresh />}
-                  onClick={handleRefresh}
-                  sx={{ bgcolor: 'white', color: '#667eea', '&:hover': { bgcolor: '#f5f5f5' } }}
-                >
-                  Refresh
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<Add />}
+                  color="success"
+                  startIcon={<AddCircle />}
                   onClick={() => handleOpenTransactionDialog('income')}
-                  sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#388e3c' } }}
+                  sx={{ bgcolor: '#4caf50' }}
                 >
-                  Add Transaction
+                  Add Income
+                </Button>
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<RemoveCircle />}
+                  onClick={() => handleOpenTransactionDialog('expense')}
+                  sx={{ bgcolor: '#f44336' }}
+                >
+                  Add Expense
                 </Button>
               </Stack>
             </Box>
           </Paper>
 
-          {/* Date Selector Card */}
+          {/* Quick Stats */}
+          <Grid container spacing={3} mb={4}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: 2, boxShadow: 3, borderLeft: '4px solid #4caf50' }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" mb={2}>
+                    <TrendingUp color="success" sx={{ mr: 2 }} />
+                    <Typography variant="h6">Today's Income</Typography>
+                  </Box>
+                  <Typography variant="h4" color="success.main" fontWeight="bold">
+                    ৳{balance?.cash_in?.toLocaleString() || '0'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: 2, boxShadow: 3, borderLeft: '4px solid #f44336' }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" mb={2}>
+                    <TrendingDown color="error" sx={{ mr: 2 }} />
+                    <Typography variant="h6">Today's Expense</Typography>
+                  </Box>
+                  <Typography variant="h4" color="error.main" fontWeight="bold">
+                    ৳{balance?.cash_out?.toLocaleString() || '0'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: 2, boxShadow: 3, borderLeft: '4px solid #2196f3' }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" mb={2}>
+                    <AccountBalanceWallet color="primary" sx={{ mr: 2 }} />
+                    <Typography variant="h6">Cash in Hand</Typography>
+                  </Box>
+                  <Typography variant="h4" color="primary.main" fontWeight="bold">
+                    ৳{totalCashInHand.toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: 2, boxShadow: 3, borderLeft: '4px solid #ff9800' }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" mb={2}>
+                    <Savings color="warning" sx={{ mr: 2 }} />
+                    <Typography variant="h6">Opening Balance</Typography>
+                  </Box>
+                  <Typography variant="h4" color="warning.main" fontWeight="bold">
+                    ৳{balance?.opening_balance?.toLocaleString() || '0'}
+                  </Typography>
+                  <Button 
+                    size="small" 
+                    onClick={handleOpenOpeningBalanceDialog}
+                    sx={{ mt: 1 }}
+                  >
+                    Update
+                  </Button>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Date Selector */}
           <Card sx={{ mb: 3, borderRadius: 2, boxShadow: 2 }}>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box display="flex" alignItems="center">
                   <CalendarMonth color="primary" sx={{ mr: 2 }} />
-                  <Typography variant="h6">Select Date</Typography>
+                  <Typography variant="h6">Select Date: {selectedDate.toLocaleDateString()}</Typography>
                 </Box>
                 <DatePicker
                   value={selectedDate}
@@ -272,412 +573,367 @@ const Accounts = () => {
             </CardContent>
           </Card>
 
-          {/* Summary Cards with Better Styling */}
-          <Grid container spacing={3} mb={4}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ 
-                borderRadius: 2, 
-                boxShadow: 3,
-                borderLeft: '4px solid #4caf50',
-                transition: 'transform 0.2s',
-                '&:hover': { transform: 'translateY(-4px)' }
-              }}>
-                <CardContent>
-                  <Box display="flex" alignItems="center" mb={2}>
-                    <Box sx={{ 
-                      bgcolor: '#4caf50', 
-                      p: 1, 
-                      borderRadius: '50%',
-                      mr: 2 
-                    }}>
-                      <TrendingUp sx={{ color: 'white' }} />
-                    </Box>
-                    <Typography variant="h6" color="textSecondary">
-                      Today's Income
-                    </Typography>
-                  </Box>
-                  <Typography variant="h4" color="#4caf50" fontWeight="bold">
-                    ৳{balance?.cash_in?.toLocaleString() || '0'}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                    <ArrowUpward fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
-                    Total income received today
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
+          {/* Transactions Table */}
+          <Paper sx={{ borderRadius: 2, overflow: 'hidden', mb: 3 }}>
+            <Box sx={{ p: 2, bgcolor: '#f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="h6">Today's Transactions</Typography>
+              <Button startIcon={<Refresh />} onClick={() => dispatch(fetchAccountBalance())}>
+                Refresh
+              </Button>
+            </Box>
             
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ 
-                borderRadius: 2, 
-                boxShadow: 3,
-                borderLeft: '4px solid #f44336',
-                transition: 'transform 0.2s',
-                '&:hover': { transform: 'translateY(-4px)' }
-              }}>
-                <CardContent>
-                  <Box display="flex" alignItems="center" mb={2}>
-                    <Box sx={{ 
-                      bgcolor: '#f44336', 
-                      p: 1, 
-                      borderRadius: '50%',
-                      mr: 2 
-                    }}>
-                      <TrendingDown sx={{ color: 'white' }} />
-                    </Box>
-                    <Typography variant="h6" color="textSecondary">
-                      Today's Expense
-                    </Typography>
-                  </Box>
-                  <Typography variant="h4" color="#f44336" fontWeight="bold">
-                    ৳{balance?.cash_out?.toLocaleString() || '0'}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                    <ArrowDownward fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
-                    Total expenses paid today
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ 
-                borderRadius: 2, 
-                boxShadow: 3,
-                borderLeft: '4px solid #2196f3',
-                transition: 'transform 0.2s',
-                '&:hover': { transform: 'translateY(-4px)' }
-              }}>
-                <CardContent>
-                  <Box display="flex" alignItems="center" mb={2}>
-                    <Box sx={{ 
-                      bgcolor: '#2196f3', 
-                      p: 1, 
-                      borderRadius: '50%',
-                      mr: 2 
-                    }}>
-                      <AccountBalanceWallet sx={{ color: 'white' }} />
-                    </Box>
-                    <Typography variant="h6" color="textSecondary">
-                      Cash in Hand
-                    </Typography>
-                  </Box>
-                  <Typography variant="h4" color="#2196f3" fontWeight="bold">
-                    ৳{totalCashInHand.toLocaleString()}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                    Available cash balance
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ 
-                borderRadius: 2, 
-                boxShadow: 3,
-                borderLeft: '4px solid #ff9800',
-                transition: 'transform 0.2s',
-                '&:hover': { transform: 'translateY(-4px)' }
-              }}>
-                <CardContent>
-                  <Box display="flex" alignItems="center" mb={2}>
-                    <Box sx={{ 
-                      bgcolor: '#ff9800', 
-                      p: 1, 
-                      borderRadius: '50%',
-                      mr: 2 
-                    }}>
-                      <Savings sx={{ color: 'white' }} />
-                    </Box>
-                    <Typography variant="h6" color="textSecondary">
-                      Opening Balance
-                    </Typography>
-                  </Box>
-                  <Typography variant="h4" color="#ff9800" fontWeight="bold">
-                    ৳{balance?.opening_balance?.toLocaleString() || '0'}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                    Balance from previous day
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-
-          {/* Tabs with Better Styling */}
-          <Paper sx={{ mb: 3, borderRadius: 2, overflow: 'hidden' }}>
-            <Tabs 
-              value={activeTab} 
-              onChange={(e, newValue) => setActiveTab(newValue)} 
-              variant="fullWidth"
-              sx={{ 
-                bgcolor: '#f5f5f5',
-                '& .MuiTab-root': { 
-                  fontWeight: 600,
-                  textTransform: 'none',
-                  fontSize: '1rem'
-                }
-              }}
-            >
-              <Tab label="Today's Transactions" icon={<Receipt />} iconPosition="start" />
-              <Tab label="Income/Expense Analysis" icon={<FilterList />} iconPosition="start" />
-              <Tab label="Monthly Summary" icon={<CalendarMonth />} iconPosition="start" />
-              <Tab label="All Transactions" icon={<AccountBalance />} iconPosition="start" />
-            </Tabs>
-          </Paper>
-
-          {error && (
-            <Alert 
-              severity="error" 
-              sx={{ mb: 3, borderRadius: 2 }}
-              action={
-                <Button color="inherit" size="small" onClick={handleRefresh}>
-                  Retry
-                </Button>
-              }
-            >
-              {error}
-            </Alert>
-          )}
-
-          {/* Tab 1: Today's Transactions */}
-          {activeTab === 0 && (
-            <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
-              <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderBottom: 1, borderColor: 'divider' }}>
-                <Typography variant="h6">
-                  Transactions for {selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {todayTransactions?.length === 0 ? (
+              <Box sx={{ p: 8, textAlign: 'center' }}>
+                <MonetizationOn sx={{ fontSize: 80, color: '#e0e0e0', mb: 2 }} />
+                <Typography variant="h6" gutterBottom color="textSecondary">
+                  No Transactions Today
                 </Typography>
               </Box>
-              {todayTransactions?.length === 0 ? (
-                <Box sx={{ p: 8, textAlign: 'center' }}>
-                  <MonetizationOn sx={{ fontSize: 80, color: '#e0e0e0', mb: 2 }} />
-                  <Typography variant="h6" gutterBottom color="textSecondary">
-                    No Transactions Today
-                  </Typography>
-                  <Typography variant="body1" color="textSecondary" sx={{ mb: 4 }}>
-                    Start recording your financial transactions
-                  </Typography>
-                  <Stack direction="row" spacing={2} justifyContent="center">
-                    <Button 
-                      variant="contained" 
-                      color="success"
-                      startIcon={<Add />}
-                      onClick={() => handleOpenTransactionDialog('income')}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      Add Income
-                    </Button>
-                    <Button 
-                      variant="contained" 
-                      color="error"
-                      startIcon={<MoneyOff />}
-                      onClick={() => handleOpenTransactionDialog('expense')}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      Add Expense
-                    </Button>
-                  </Stack>
-                </Box>
-              ) : (
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: '#fafafa' }}>
-                        <TableCell><strong>Time</strong></TableCell>
-                        <TableCell><strong>Description</strong></TableCell>
-                        <TableCell><strong>Category</strong></TableCell>
-                        <TableCell><strong>Type</strong></TableCell>
-                        <TableCell><strong>Amount</strong></TableCell>
-                        <TableCell><strong>Payment Method</strong></TableCell>
-                        <TableCell><strong>Reference</strong></TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {todayTransactions?.map((transaction) => (
-                        <TableRow 
-                          key={transaction.id}
-                          sx={{ 
-                            '&:hover': { bgcolor: '#f9f9f9' },
-                            transition: 'background-color 0.2s'
-                          }}
-                        >
-                          <TableCell>
-                            <Typography variant="body2" color="textSecondary">
-                              {new Date(transaction.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography fontWeight="bold">{transaction.description}</Typography>
-                            {transaction.notes && (
-                              <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
-                                {transaction.notes}
-                              </Typography>
-                            )}
-                          </TableCell>
-                          <TableCell>
+            ) : (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: '#fafafa' }}>
+                      <TableCell><strong>Voucher No</strong></TableCell>
+                      <TableCell><strong>Type</strong></TableCell>
+                      <TableCell><strong>Name</strong></TableCell>
+                      <TableCell><strong>Description</strong></TableCell>
+                      <TableCell><strong>Amount</strong></TableCell>
+                      <TableCell><strong>Actions</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {todayTransactions?.map((transaction) => (
+                      <TableRow key={transaction.id} hover>
+                        <TableCell>
+                          <Typography variant="body2" color="textSecondary">
+                            {transaction.voucher_number}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={transaction.voucher_type === 'credit' ? 'Credit' : 'Debit'} 
+                            color={getVoucherTypeColor(transaction.voucher_type)}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography fontWeight="bold">{transaction.name}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">{transaction.description}</Typography>
+                          {transaction.category && (
                             <Chip 
                               label={transaction.category} 
+                              size="small" 
+                              sx={{ mt: 0.5 }}
                               color={getCategoryColor(transaction.category)}
-                              size="small"
-                              sx={{ fontWeight: 500 }}
                             />
-                          </TableCell>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Typography 
+                            fontWeight="bold"
+                            color={transaction.type === 'income' ? 'success.main' : 'error.main'}
+                          >
+                            ৳{parseFloat(transaction.amount).toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip title="View Voucher">
+                            <IconButton 
+                              size="small" 
+                              onClick={() => handleViewVoucher(transaction)}
+                              color="primary"
+                            >
+                              <Print />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Paper>
+
+          {/* Transaction Dialog */}
+          <Dialog open={openTransactionDialog} onClose={handleCloseTransactionDialog} maxWidth="sm" fullWidth>
+            <DialogTitle sx={{ bgcolor: transactionForm.type === 'income' ? '#4caf50' : '#f44336', color: 'white' }}>
+              {transactionForm.type === 'income' ? 'Create Credit Voucher (Income)' : 'Create Debit Voucher (Expense)'}
+            </DialogTitle>
+            <DialogContent sx={{ mt: 2 }}>
+              <TextField
+                fullWidth
+                label="Date"
+                type="date"
+                value={transactionForm.date}
+                onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })}
+                margin="normal"
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                fullWidth
+                label="Name"
+                value={transactionForm.name}
+                onChange={(e) => setTransactionForm({ ...transactionForm, name: e.target.value })}
+                margin="normal"
+                required
+                helperText="Name of person/company"
+              />
+              <TextField
+                fullWidth
+                label="Description"
+                value={transactionForm.description}
+                onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })}
+                margin="normal"
+                required
+                multiline
+                rows={2}
+              />
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={transactionForm.category}
+                  label="Category"
+                  onChange={(e) => setTransactionForm({ ...transactionForm, category: e.target.value })}
+                >
+                  {transactionForm.type === 'income' 
+                    ? incomeCategoriesList.map(category => (
+                        <MenuItem key={category} value={category}>{category}</MenuItem>
+                      ))
+                    : expenseCategoriesList.map(category => (
+                        <MenuItem key={category} value={category}>{category}</MenuItem>
+                      ))
+                  }
+                </Select>
+              </FormControl>
+              <TextField
+                fullWidth
+                label="Amount (৳)"
+                type="number"
+                value={transactionForm.amount}
+                onChange={(e) => setTransactionForm({ ...transactionForm, amount: e.target.value })}
+                margin="normal"
+                required
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">৳</InputAdornment>,
+                }}
+              />
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Payment Method</InputLabel>
+                <Select
+                  value={transactionForm.payment_method}
+                  label="Payment Method"
+                  onChange={(e) => setTransactionForm({ ...transactionForm, payment_method: e.target.value })}
+                >
+                  <MenuItem value="cash">Cash</MenuItem>
+                  <MenuItem value="bank">Bank Transfer</MenuItem>
+                  <MenuItem value="mobile_banking">Mobile Banking</MenuItem>
+                  <MenuItem value="check">Check</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                fullWidth
+                label="Reference Number"
+                value={transactionForm.reference_number}
+                onChange={(e) => setTransactionForm({ ...transactionForm, reference_number: e.target.value })}
+                margin="normal"
+              />
+              <TextField
+                fullWidth
+                label="Notes"
+                value={transactionForm.notes}
+                onChange={(e) => setTransactionForm({ ...transactionForm, notes: e.target.value })}
+                margin="normal"
+                multiline
+                rows={2}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseTransactionDialog}>Cancel</Button>
+              <Button 
+                onClick={handleSubmitTransaction} 
+                variant="contained"
+                color={transactionForm.type === 'income' ? 'success' : 'error'}
+              >
+                Create {transactionForm.type === 'income' ? 'Credit' : 'Debit'} Voucher
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Opening Balance Dialog */}
+          <Dialog open={openOpeningBalanceDialog} onClose={handleCloseOpeningBalanceDialog} maxWidth="sm" fullWidth>
+            <DialogTitle sx={{ bgcolor: '#ff9800', color: 'white' }}>
+              Set Opening Balance
+            </DialogTitle>
+            <DialogContent sx={{ mt: 2 }}>
+              <TextField
+                fullWidth
+                label="Date"
+                type="date"
+                value={openingBalanceForm.date}
+                onChange={(e) => setOpeningBalanceForm({ ...openingBalanceForm, date: e.target.value })}
+                margin="normal"
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                fullWidth
+                label="Opening Balance (৳)"
+                type="number"
+                value={openingBalanceForm.amount}
+                onChange={(e) => setOpeningBalanceForm({ ...openingBalanceForm, amount: e.target.value })}
+                margin="normal"
+                required
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">৳</InputAdornment>,
+                }}
+                helperText="Starting cash balance for the day"
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseOpeningBalanceDialog}>Cancel</Button>
+              <Button onClick={handleSetOpeningBalance} variant="contained" color="warning">
+                Set Opening Balance
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Voucher View Dialog */}
+          {selectedVoucher && (
+            <Dialog open={openVoucherDialog} onClose={handleCloseVoucherDialog} maxWidth="md" fullWidth>
+              <DialogTitle>
+                Voucher: {selectedVoucher.voucher_number}
+              </DialogTitle>
+              <DialogContent>
+                <Paper id="voucher-content" sx={{ p: 3, border: '2px solid #000', position: 'relative' }}>
+                  {/* Voucher Header */}
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    bgcolor: '#ff5722', 
+                    color: 'white', 
+                    py: 2, 
+                    mx: -3, 
+                    mt: -3,
+                    mb: 3
+                  }}>
+                    <Typography variant="h5" fontWeight="bold">
+                      SHAHFARID REAL ESTATE COMPANY
+                    </Typography>
+                    <Typography variant="body2">
+                      Ambika Sarak, Jhiltuli, Faridpur
+                    </Typography>
+                  </Box>
+
+                  {/* Voucher Title */}
+                  <Typography variant="h6" align="center" gutterBottom sx={{ textDecoration: 'underline', mb: 3 }}>
+                    {selectedVoucher.voucher_type === 'credit' ? 'CREDIT VOUCHER' : 'DEBIT VOUCHER'}
+                  </Typography>
+
+                  {/* Voucher Details */}
+                  <TableContainer>
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow>
+                          <TableCell sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold', width: '30%' }}>Voucher No:</TableCell>
+                          <TableCell><strong>{selectedVoucher.voucher_number}</strong></TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold' }}>Date:</TableCell>
+                          <TableCell>{new Date(selectedVoucher.date).toLocaleDateString()}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold' }}>Name:</TableCell>
+                          <TableCell>{selectedVoucher.name}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold' }}>Description:</TableCell>
+                          <TableCell>{selectedVoucher.description}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold' }}>Category:</TableCell>
                           <TableCell>
                             <Chip 
-                              label={transaction.type} 
-                              color={transaction.type === 'income' ? 'success' : 'error'}
+                              label={selectedVoucher.category} 
+                              color={getCategoryColor(selectedVoucher.category)}
                               size="small"
-                              icon={transaction.type === 'income' ? <ArrowUpward /> : <ArrowDownward />}
-                              sx={{ fontWeight: 500 }}
                             />
                           </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold' }}>Payment Method:</TableCell>
+                          <TableCell>{selectedVoucher.payment_method}</TableCell>
+                        </TableRow>
+                        {selectedVoucher.reference_number && (
+                          <TableRow>
+                            <TableCell sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold' }}>Reference:</TableCell>
+                            <TableCell>{selectedVoucher.reference_number}</TableCell>
+                          </TableRow>
+                        )}
+                        <TableRow>
+                          <TableCell sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold' }}>Amount:</TableCell>
                           <TableCell>
-                            <Typography 
-                              fontWeight="bold"
-                              color={transaction.type === 'income' ? 'success.main' : 'error.main'}
-                              sx={{ fontSize: '1.1rem' }}
-                            >
-                              ৳{parseFloat(transaction.amount).toLocaleString()}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Box display="flex" alignItems="center">
-                              <Tooltip title={transaction.payment_method}>
-                                <Box sx={{ mr: 1 }}>
-                                  {getPaymentMethodIcon(transaction.payment_method)}
-                                </Box>
-                              </Tooltip>
-                              <Typography variant="body2">
-                                {transaction.payment_method}
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color="textSecondary">
-                              {transaction.reference_number || 'N/A'}
+                            <Typography variant="h6" color={selectedVoucher.type === 'income' ? 'success.main' : 'error.main'}>
+                              ৳{parseFloat(selectedVoucher.amount).toLocaleString()}
                             </Typography>
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </Paper>
-          )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
 
-          {/* Tab 2: Income/Expense Categories */}
-          {activeTab === 1 && (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Card sx={{ borderRadius: 2, height: '100%' }}>
-                  <CardContent>
-                    <Box display="flex" alignItems="center" mb={2}>
-                      <Box sx={{ bgcolor: '#4caf50', p: 1, borderRadius: '50%', mr: 2 }}>
-                        <TrendingUp sx={{ color: 'white' }} />
-                      </Box>
-                      <Typography variant="h6" color="success.main">
-                        Income Categories
+                  {/* Amount in Bangla */}
+                  {selectedVoucher.amount_in_bangla && (
+                    <Paper sx={{ p: 2, mt: 2, bgcolor: '#f9f9f9', border: '1px solid #000' }}>
+                      <Typography fontWeight="bold">মোট টাকার পরিমাণ:</Typography>
+                      <Typography variant="h6" color="#d32f2f" fontFamily="'Hind Siliguri', sans-serif">
+                        {selectedVoucher.amount_in_bangla}
                       </Typography>
-                    </Box>
-                    <Divider sx={{ mb: 2 }} />
-                    {Object.entries(incomeCategories || {}).length === 0 ? (
-                      <Box sx={{ py: 4, textAlign: 'center' }}>
-                        <Typography color="textSecondary">
-                          No income recorded today
-                        </Typography>
+                    </Paper>
+                  )}
+
+                  {/* Signature Section */}
+                  <Grid container spacing={3} sx={{ mt: 4 }}>
+                    <Grid item xs={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2">প্রস্তুতকারী</Typography>
+                        <Divider sx={{ mt: 1 }} />
+                        <Typography variant="caption">তারিখ: {new Date().toLocaleDateString()}</Typography>
                       </Box>
-                    ) : (
-                      Object.entries(incomeCategories || {}).map(([category, amount]) => (
-                        <Box key={category} sx={{ mb: 2 }}>
-                          <Box display="flex" justifyContent="space-between" alignItems="center">
-                            <Box display="flex" alignItems="center">
-                              <Box sx={{ width: 8, height: 8, bgcolor: '#4caf50', borderRadius: '50%', mr: 1.5 }} />
-                              <Typography>{category}</Typography>
-                            </Box>
-                            <Typography fontWeight="bold" color="success.main" sx={{ fontSize: '1.1rem' }}>
-                              ৳{amount.toLocaleString()}
-                            </Typography>
-                          </Box>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={Math.min(100, (amount / (balance?.cash_in || 1)) * 100)} 
-                            color="success"
-                            sx={{ mt: 1, height: 6, borderRadius: 3 }}
-                          />
-                        </Box>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Card sx={{ borderRadius: 2, height: '100%' }}>
-                  <CardContent>
-                    <Box display="flex" alignItems="center" mb={2}>
-                      <Box sx={{ bgcolor: '#f44336', p: 1, borderRadius: '50%', mr: 2 }}>
-                        <TrendingDown sx={{ color: 'white' }} />
+                    </Grid>
+                    <Grid item xs={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2">পরীক্ষক</Typography>
+                        <Divider sx={{ mt: 1 }} />
+                        <Typography variant="caption">তারিখ: {new Date().toLocaleDateString()}</Typography>
                       </Box>
-                      <Typography variant="h6" color="error.main">
-                        Expense Categories
-                      </Typography>
-                    </Box>
-                    <Divider sx={{ mb: 2 }} />
-                    {Object.entries(expenseCategories || {}).length === 0 ? (
-                      <Box sx={{ py: 4, textAlign: 'center' }}>
-                        <Typography color="textSecondary">
-                          No expenses recorded today
-                        </Typography>
+                    </Grid>
+                    <Grid item xs={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2">অনুমোদনকারী</Typography>
+                        <Divider sx={{ mt: 1 }} />
+                        <Typography variant="caption">তারিখ: {new Date().toLocaleDateString()}</Typography>
                       </Box>
-                    ) : (
-                      Object.entries(expenseCategories || {}).map(([category, amount]) => (
-                        <Box key={category} sx={{ mb: 2 }}>
-                          <Box display="flex" justifyContent="space-between" alignItems="center">
-                            <Box display="flex" alignItems="center">
-                              <Box sx={{ width: 8, height: 8, bgcolor: '#f44336', borderRadius: '50%', mr: 1.5 }} />
-                              <Typography>{category}</Typography>
-                            </Box>
-                            <Typography fontWeight="bold" color="error.main" sx={{ fontSize: '1.1rem' }}>
-                              ৳{amount.toLocaleString()}
-                            </Typography>
-                          </Box>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={Math.min(100, (amount / (balance?.cash_out || 1)) * 100)} 
-                            color="error"
-                            sx={{ mt: 1, height: 6, borderRadius: 3 }}
-                          />
-                        </Box>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+                    </Grid>
+                    <Grid item xs={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2">প্রাপক স্বাক্ষর</Typography>
+                        <Divider sx={{ mt: 1 }} />
+                        <Typography variant="caption">তারিখ: {new Date().toLocaleDateString()}</Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={handleCloseVoucherDialog}>Close</Button>
+                <Button onClick={handlePrintVoucher} variant="contained" startIcon={<Print />}>
+                  Print Voucher
+                </Button>
+              </DialogActions>
+            </Dialog>
           )}
-
-          {/* Remaining tabs content... */}
-          {/* (Keep your existing Tab 3 and Tab 4 content from before) */}
-
-          {/* Dialogs */}
-          <Dialog 
-            open={openTransactionDialog} 
-            onClose={handleCloseTransactionDialog} 
-            maxWidth="sm" 
-            fullWidth
-            PaperProps={{ sx: { borderRadius: 2 } }}
-          >
-            <DialogTitle sx={{ bgcolor: transactionForm.type === 'income' ? '#4caf50' : '#f44336', color: 'white' }}>
-              <Box display="flex" alignItems="center">
-                {transactionForm.type === 'income' ? <TrendingUp sx={{ mr: 1 }} /> : <TrendingDown sx={{ mr: 1 }} />}
-                {transactionForm.type === 'income' ? 'Record Income' : 'Record Expense'}
-              </Box>
-            </DialogTitle>
-            <DialogContent>
-              {/* Keep your existing form content */}
-            </DialogContent>
-          </Dialog>
 
           <Snackbar
             open={snackbar.open}
@@ -688,8 +944,7 @@ const Accounts = () => {
             <Alert 
               onClose={() => setSnackbar({ ...snackbar, open: false })} 
               severity={snackbar.severity}
-              sx={{ width: '100%', borderRadius: 2 }}
-              elevation={6}
+              sx={{ borderRadius: 2 }}
             >
               {snackbar.message}
             </Alert>
