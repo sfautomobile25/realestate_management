@@ -47,7 +47,7 @@ const numberToBanglaWords = (num) => {
   return words.trim();
 };
 
-// Set opening balance
+// 1. Fix opening balance route - Add this near the top with other routes
 router.post('/opening-balance', async (req, res) => {
   try {
     const { date, amount } = req.body;
@@ -56,17 +56,25 @@ router.post('/opening-balance', async (req, res) => {
       return res.status(400).json({ message: 'Date and amount are required' });
     }
     
+    // Convert date to proper format
+    const targetDate = new Date(date).toISOString().split('T')[0];
+    
     // Check if opening balance already exists for this date
     const existingBalance = await CashBalance.findOne({
-      where: { date }
+      where: { date: targetDate }
     });
     
     if (existingBalance) {
-      return res.status(400).json({ message: 'Opening balance already set for this date' });
+      // Update existing balance
+      existingBalance.opening_balance = parseFloat(amount);
+      existingBalance.closing_balance = parseFloat(amount) + existingBalance.cash_in - existingBalance.cash_out;
+      await existingBalance.save();
+      return res.json(existingBalance);
     }
     
+    // Create new balance
     const cashBalance = await CashBalance.create({
-      date,
+      date: targetDate,
       opening_balance: parseFloat(amount),
       cash_in: 0,
       cash_out: 0,
@@ -81,45 +89,70 @@ router.post('/opening-balance', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
-// Get cash balance summary
+
+// GET /balance - Get cash balance (FIXED)
 router.get('/balance', async (req, res) => {
   try {
     const { date } = req.query;
     const targetDate = date || new Date().toISOString().split('T')[0];
     
+    // Get today's transactions
+    const todayStart = new Date(targetDate);
+    const todayEnd = new Date(targetDate);
+    todayEnd.setHours(23, 59, 59, 999);
+    
+    const todayTransactions = await Account.findAll({
+      where: {
+        date: {
+          [Op.between]: [todayStart, todayEnd]
+        }
+      },
+      order: [['createdAt', 'DESC']]
+    });
+    
+    // Calculate totals from transactions
+    const todayIncome = todayTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+    
+    const todayExpense = todayTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+    
+    // Get or create cash balance
     let cashBalance = await CashBalance.findOne({
       where: { date: targetDate }
     });
     
     if (!cashBalance) {
-      // Get latest balance
+      // Get latest balance for opening balance
       const latestBalance = await CashBalance.findOne({
         order: [['date', 'DESC']]
       });
       
+      const openingBalance = latestBalance ? latestBalance.closing_balance : 0;
+      
       cashBalance = {
         date: targetDate,
-        opening_balance: latestBalance ? latestBalance.closing_balance : 0,
-        cash_in: 0,
-        cash_out: 0,
-        closing_balance: latestBalance ? latestBalance.closing_balance : 0,
+        opening_balance: openingBalance,
+        cash_in: todayIncome,
+        cash_out: todayExpense,
+        closing_balance: openingBalance + todayIncome - todayExpense,
         bank_balance: 0,
         mobile_banking_balance: 0
       };
+      
+      // Save if needed
+      // await CashBalance.create(cashBalance);
+    } else {
+      // Update with fresh totals
+      cashBalance.cash_in = todayIncome;
+      cashBalance.cash_out = todayExpense;
+      cashBalance.closing_balance = cashBalance.opening_balance + todayIncome - todayExpense;
+      
+      // Save updates
+      await cashBalance.save();
     }
-    
-    // Get today's transactions
-    const todayTransactions = await Account.findAll({
-      where: {
-        date: {
-          [Op.between]: [
-            new Date(targetDate),
-            new Date(new Date(targetDate).setHours(23, 59, 59))
-          ]
-        }
-      },
-      order: [['createdAt', 'DESC']]
-    });
     
     // Calculate category totals
     const incomeCategories = {};
@@ -128,10 +161,10 @@ router.get('/balance', async (req, res) => {
     todayTransactions.forEach(transaction => {
       if (transaction.type === 'income') {
         incomeCategories[transaction.category] = 
-          (incomeCategories[transaction.category] || 0) + parseFloat(transaction.amount);
+          (incomeCategories[transaction.category] || 0) + parseFloat(transaction.amount || 0);
       } else if (transaction.type === 'expense') {
         expenseCategories[transaction.category] = 
-          (expenseCategories[transaction.category] || 0) + parseFloat(transaction.amount);
+          (expenseCategories[transaction.category] || 0) + parseFloat(transaction.amount || 0);
       }
     });
     
@@ -140,15 +173,16 @@ router.get('/balance', async (req, res) => {
       todayTransactions,
       incomeCategories,
       expenseCategories,
-      totalIncome: cashBalance.cash_in,
-      totalExpense: cashBalance.cash_out
+      totalIncome: todayIncome,
+      totalExpense: todayExpense
     });
   } catch (error) {
     console.error('Error fetching balance:', error);
     res.status(500).json({ message: error.message });
   }
 });
-// Create account transaction with voucher
+
+// 3. Fix transaction creation to properly update cash balance
 router.post('/', async (req, res) => {
   const transaction = await sequelize.transaction();
   
@@ -157,6 +191,7 @@ router.post('/', async (req, res) => {
     
     // Validate required fields
     if (!name || !description || !type || !category || !amount) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'Missing required fields' });
     }
     
@@ -181,7 +216,7 @@ router.post('/', async (req, res) => {
       amount_in_bangla: amountInBangla
     }, { transaction });
     
-    // Update cash balance
+    // Update cash balance for the day
     const transactionDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     
     let cashBalance = await CashBalance.findOne({
@@ -189,8 +224,73 @@ router.post('/', async (req, res) => {
       transaction
     });
     
+  // POST / - Create transaction (FIXED VERSION)
+router.post('/', async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { date, name, description, type, category, amount, payment_method, reference_number, notes } = req.body;
+    
+    // Validate required fields
+    if (!name || !description || !type || !category || !amount) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+    
+    // Generate voucher details
+    const voucherType = type === 'income' ? 'credit' : 'debit';
+    const voucherNumber = generateVoucherNumber(voucherType);
+    const amountInBangla = numberToBanglaWords(parseFloat(amount));
+    
+    // Create account transaction
+    const account = await Account.create({
+      voucher_number: voucherNumber,
+      voucher_type: voucherType,
+      date: date || new Date(),
+      name,
+      description,
+      type,
+      category,
+      amount: parseFloat(amount),
+      payment_method: payment_method || 'cash',
+      reference_number,
+      notes,
+      amount_in_bangla: amountInBangla
+    }, { transaction });
+    
+    // Update cash balance for the day
+    const transactionDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    
+    let cashBalance = await CashBalance.findOne({
+      where: { date: transactionDate },
+      transaction
+    });
+    
+    // Get all today's transactions including the new one
+    const todayStart = new Date(transactionDate);
+    const todayEnd = new Date(transactionDate);
+    todayEnd.setHours(23, 59, 59, 999);
+    
+    const todayTransactions = await Account.findAll({
+      where: {
+        date: {
+          [Op.between]: [todayStart, todayEnd]
+        }
+      },
+      transaction
+    });
+    
+    // Calculate totals from all transactions
+    const todayIncome = todayTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+    
+    const todayExpense = todayTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+    
     if (!cashBalance) {
-      // Get previous day's closing balance
+      // Get previous day's closing balance for opening balance
       const previousBalance = await CashBalance.findOne({
         where: {
           date: {
@@ -206,35 +306,51 @@ router.post('/', async (req, res) => {
       cashBalance = await CashBalance.create({
         date: transactionDate,
         opening_balance: openingBalance,
-        cash_in: type === 'income' ? parseFloat(amount) : 0,
-        cash_out: type === 'expense' ? parseFloat(amount) : 0,
-        closing_balance: openingBalance + 
-          (type === 'income' ? parseFloat(amount) : -parseFloat(amount)),
+        cash_in: todayIncome,
+        cash_out: todayExpense,
+        closing_balance: openingBalance + todayIncome - todayExpense,
         bank_balance: 0,
         mobile_banking_balance: 0
       }, { transaction });
     } else {
-      // Update existing balance
-      if (type === 'income') {
-        cashBalance.cash_in += parseFloat(amount);
-        cashBalance.closing_balance += parseFloat(amount);
-      } else if (type === 'expense') {
-        cashBalance.cash_out += parseFloat(amount);
-        cashBalance.closing_balance -= parseFloat(amount);
-      }
+      // Update existing balance with accurate totals
+      cashBalance.cash_in = todayIncome;
+      cashBalance.cash_out = todayExpense;
+      cashBalance.closing_balance = cashBalance.opening_balance + todayIncome - todayExpense;
       
       await cashBalance.save({ transaction });
     }
     
     await transaction.commit();
     
-    // Get complete transaction with balance info
-    const completeTransaction = await Account.findByPk(account.id);
+    // Get fresh balance after commit
+    const freshBalance = await CashBalance.findOne({
+      where: { date: transactionDate }
+    });
     
     res.status(201).json({
-      transaction: completeTransaction,
+      transaction: account,
       voucher_number: voucherNumber,
-      balance: cashBalance
+      balance: freshBalance
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error creating transaction:', error);
+    res.status(400).json({ message: error.message });
+  }
+});
+    
+    await transaction.commit();
+    
+    // Get fresh balance after commit
+    const freshBalance = await CashBalance.findOne({
+      where: { date: transactionDate }
+    });
+    
+    res.status(201).json({
+      transaction: account,
+      voucher_number: voucherNumber,
+      balance: freshBalance
     });
   } catch (error) {
     await transaction.rollback();
