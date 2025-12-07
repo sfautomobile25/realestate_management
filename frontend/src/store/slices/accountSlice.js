@@ -50,8 +50,6 @@ export const setOpeningBalance = createAsyncThunk(
   }
 );
 
-
-
 const accountSlice = createSlice({
   name: 'accounts',
   initialState: {
@@ -91,9 +89,12 @@ const accountSlice = createSlice({
       .addCase(fetchMonthlySummary.fulfilled, (state, action) => {
         state.monthlySummary = action.payload;
       })
-    // Add to extraReducers
-    .addCase(setOpeningBalance.fulfilled, (state, action) => {
-    state.balance = action.payload;
+      .addCase(setOpeningBalance.fulfilled, (state, action) => {
+  state.balance = action.payload;
+  state.error = null;
+})
+.addCase(setOpeningBalance.rejected, (state, action) => {
+  state.error = action.payload || 'Failed to set opening balance';
 })
   }
 });

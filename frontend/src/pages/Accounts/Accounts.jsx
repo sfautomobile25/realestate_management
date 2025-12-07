@@ -215,204 +215,201 @@ const Accounts = () => {
     dispatch(fetchAccountBalance(date.toISOString().split('T')[0]));
   };
 
-  const handlePrintVoucher = () => {
-    const printContent = document.getElementById('voucher-content');
-    const printWindow = window.open('', '_blank');
-    
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Voucher - ${selectedVoucher?.voucher_number}</title>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap');
-          body { 
-            font-family: 'Hind Siliguri', Arial, sans-serif; 
-            margin: 0; 
-            padding: 20px; 
-            background: white;
-          }
-          .voucher-container { 
-            max-width: 800px; 
-            margin: 0 auto; 
-            border: 2px solid #000; 
-            padding: 20px;
-            position: relative;
-          }
-          .company-header { 
-            text-align: center; 
-            background: #ff5722; 
-            color: white; 
-            padding: 15px; 
-            margin: -20px -20px 20px -20px;
-          }
-          .company-name { 
-            font-size: 24px; 
-            font-weight: bold; 
-            margin-bottom: 5px;
-          }
-          .company-address {
-            font-size: 14px;
-            margin-bottom: 5px;
-          }
-          .voucher-title { 
-            font-size: 20px; 
-            font-weight: bold;
-            margin: 20px 0;
-            text-align: center;
-            text-decoration: underline;
-          }
-          .details-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-          }
-          .details-table td {
-            padding: 8px;
-            border: 1px solid #000;
-          }
-          .details-table .label {
-            width: 30%;
-            background: #f5f5f5;
-            font-weight: bold;
-          }
-          .amount-in-words {
-            padding: 10px;
-            border: 1px solid #000;
-            margin: 20px 0;
-            background: #f9f9f9;
-            font-weight: bold;
-          }
-          .signature-section {
-            margin-top: 60px;
-            display: flex;
-            justify-content: space-between;
-            text-align: center;
-          }
-          .signature-box {
-            width: 45%;
-          }
-          .signature-line {
-            border-top: 1px solid #000;
-            margin-top: 40px;
-            padding-top: 5px;
-          }
-          .bangla-amount {
-            font-family: 'Hind Siliguri', sans-serif;
-            font-size: 16px;
-            font-weight: bold;
-            color: #d32f2f;
-          }
-          @media print {
-            body { margin: 0; }
-            .no-print { display: none; }
-            .voucher-container { border: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="voucher-container">
-          <div class="company-header">
-            <div class="company-name">SHAHFARID REAL ESTATE COMPANY</div>
-            <div class="company-address">Ambika Sarak, Jhiltuli, Faridpur</div>
-            <div class="company-address">Phone: [Your Phone] | Email: [Your Email]</div>
-          </div>
-          
-          <div class="voucher-title">
-            ${selectedVoucher?.voucher_type === 'credit' ? 'CREDIT VOUCHER' : 'DEBIT VOUCHER'}
-          </div>
-          
-          <table class="details-table">
-            <tr>
-              <td class="label">Voucher No:</td>
-              <td><strong>${selectedVoucher?.voucher_number}</strong></td>
-            </tr>
-            <tr>
-              <td class="label">Date:</td>
-              <td>${new Date(selectedVoucher?.date).toLocaleDateString('bn-BD')}</td>
-            </tr>
-            <tr>
-              <td class="label">Name:</td>
-              <td>${selectedVoucher?.name}</td>
-            </tr>
-            <tr>
-              <td class="label">Description:</td>
-              <td>${selectedVoucher?.description}</td>
-            </tr>
-            <tr>
-              <td class="label">Category:</td>
-              <td>${selectedVoucher?.category}</td>
-            </tr>
-            <tr>
-              <td class="label">Payment Method:</td>
-              <td>${selectedVoucher?.payment_method}</td>
-            </tr>
-            ${selectedVoucher?.reference_number ? `
-            <tr>
-              <td class="label">Reference:</td>
-              <td>${selectedVoucher?.reference_number}</td>
-            </tr>
-            ` : ''}
-            <tr>
-              <td class="label">Amount:</td>
-              <td><strong>৳${selectedVoucher?.amount?.toLocaleString()}</strong></td>
-            </tr>
-          </table>
-          
-          <div class="amount-in-words">
-            <strong>মোট টাকার পরিমাণ:</strong>
-            <div class="bangla-amount">${selectedVoucher?.amount_in_bangla || ''}</div>
-          </div>
-          
-          ${selectedVoucher?.notes ? `
-          <div style="margin: 20px 0; padding: 10px; border: 1px solid #000;">
-            <strong>Notes:</strong> ${selectedVoucher?.notes}
-          </div>
-          ` : ''}
-          
-          <div class="signature-section">
-            <div class="signature-box">
-              <div>প্রস্তুতকারী</div>
-              <div class="signature-line"></div>
-              <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
-            </div>
-            <div class="signature-box">
-              <div>পরীক্ষক</div>
-              <div class="signature-line"></div>
-              <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
-            </div>
-            <div class="signature-box">
-              <div>অনুমোদনকারী</div>
-              <div class="signature-line"></div>
-              <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
-            </div>
-            <div class="signature-box">
-              <div>প্রাপক স্বাক্ষর</div>
-              <div class="signature-line"></div>
-              <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
-            </div>
-          </div>
-          
-          <div style="text-align: center; margin-top: 30px; font-size: 12px; color: #666;">
-            <div>----------------------------------</div>
-            <div>এই রসিদের নিচের অংশ কর্তন করুন</div>
-            <div>----------------------------------</div>
-          </div>
-          
-          <div style="margin-top: 40px; padding: 15px; border: 1px dashed #000; text-align: center;">
-            <div style="font-weight: bold;">সাধারণ নোটিশ</div>
-            <div style="font-size: 12px; margin-top: 5px;">
-              এই রসিদটি সঠিকভাবে সংরক্ষণ করুন। কোনো সমস্যা দেখা দিলে দ্রুত অফিসে যোগাযোগ করুন।
-            </div>
+ const handlePrintVoucher = () => {
+  const printContent = document.getElementById('voucher-content');
+  const printWindow = window.open('', '_blank');
+  
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Voucher - ${selectedVoucher?.voucher_number}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap');
+        body { 
+          font-family: 'Hind Siliguri', Arial, sans-serif; 
+          margin: 0; 
+          padding: 20px; 
+          background: white;
+        }
+        .voucher-container { 
+          max-width: 800px; 
+          margin: 0 auto; 
+          border: 2px solid #000; 
+          padding: 20px;
+          position: relative;
+        }
+        .company-header { 
+          text-align: center; 
+          background: #FF991D;  /* CHANGED COLOR */
+          color: white; 
+          padding: 15px; 
+          margin: -20px -20px 20px -20px;
+        }
+        .company-name { 
+          font-size: 24px; 
+          font-weight: bold; 
+          margin-bottom: 5px;
+        }
+        .company-address {
+          font-size: 14px;
+          margin-bottom: 5px;
+        }
+        .company-contact {
+          font-size: 13px;
+          margin-bottom: 5px;
+        }
+        .voucher-title { 
+          font-size: 20px; 
+          font-weight: bold;
+          margin: 20px 0;
+          text-align: center;
+          text-decoration: underline;
+        }
+        .details-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 20px 0;
+        }
+        .details-table td {
+          padding: 8px;
+          border: 1px solid #000;
+        }
+        .details-table .label {
+          width: 30%;
+          background: #f5f5f5;
+          font-weight: bold;
+        }
+        .amount-in-words {
+          padding: 10px;
+          border: 1px solid #000;
+          margin: 20px 0;
+          background: #f9f9f9;
+          font-weight: bold;
+        }
+        .signature-section {
+          margin-top: 60px;
+          display: flex;
+          justify-content: space-between;
+          text-align: center;
+        }
+        .signature-box {
+          width: 23%;
+        }
+        .signature-line {
+          border-top: 1px solid #000;
+          margin-top: 40px;
+          padding-top: 5px;
+        }
+        .bangla-amount {
+          font-family: 'Hind Siliguri', sans-serif;
+          font-size: 16px;
+          font-weight: bold;
+          color: #d32f2f;
+        }
+        @media print {
+          body { margin: 0; }
+          .no-print { display: none; }
+          .voucher-container { border: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="voucher-container">
+        <div class="company-header">
+          <div class="company-name">SHAHFARID REAL ESTATE COMPANY</div>
+          <div class="company-address">Ambika Sarak, Jhiltuli, Faridpur</div>
+          <div class="company-contact">
+            Phone: 01711121673 | Email: info@sfrec-bd.com  <!-- UPDATED CONTACT -->
           </div>
         </div>
-      </body>
-      </html>
-    `);
-    
-    printWindow.document.close();
-    printWindow.print();
-  };
+        
+        <div class="voucher-title">
+          ${selectedVoucher?.voucher_type === 'credit' ? 'CREDIT VOUCHER' : 'DEBIT VOUCHER'}
+        </div>
+        
+        <table class="details-table">
+          <tr>
+            <td class="label">Voucher No:</td>
+            <td><strong>${selectedVoucher?.voucher_number}</strong></td>
+          </tr>
+          <tr>
+            <td class="label">Date:</td>
+            <td>${new Date(selectedVoucher?.date).toLocaleDateString('bn-BD')}</td>
+          </tr>
+          <tr>
+            <td class="label">Name:</td>
+            <td>${selectedVoucher?.name}</td>
+          </tr>
+          <tr>
+            <td class="label">Description:</td>
+            <td>${selectedVoucher?.description}</td>
+          </tr>
+          <tr>
+            <td class="label">Category:</td>
+            <td>${selectedVoucher?.category}</td>
+          </tr>
+          <tr>
+            <td class="label">Payment Method:</td>
+            <td>${selectedVoucher?.payment_method}</td>
+          </tr>
+          ${selectedVoucher?.reference_number ? `
+          <tr>
+            <td class="label">Reference:</td>
+            <td>${selectedVoucher?.reference_number}</td>
+          </tr>
+          ` : ''}
+          <tr>
+            <td class="label">Amount:</td>
+            <td><strong>৳${selectedVoucher?.amount?.toLocaleString()}</strong></td>
+          </tr>
+        </table>
+        
+        <div class="amount-in-words">
+          <strong>মোট টাকার পরিমাণ:</strong>
+          <div class="bangla-amount">${selectedVoucher?.amount_in_bangla || ''}</div>
+        </div>
+        
+        ${selectedVoucher?.notes ? `
+        <div style="margin: 20px 0; padding: 10px; border: 1px solid #000;">
+          <strong>Notes:</strong> ${selectedVoucher?.notes}
+        </div>
+        ` : ''}
+        
+        <div class="signature-section">
+          <div class="signature-box">
+            <div>অর্থ সংক্রান্ত কর্মকর্তা</div>
+            <div>(Accounts Officer)</div>
+            <div class="signature-line"></div>
+            <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
+          </div>
+          <div class="signature-box">
+            <div>হিসাব পরীক্ষক</div>
+            <div>(Accountant)</div>
+            <div class="signature-line"></div>
+            <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
+          </div>
+          <div class="signature-box">
+            <div>সিইও/এমডি</div>
+            <div>(CEO/MD)</div>
+            <div class="signature-line"></div>
+            <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
+          </div>
+          <div class="signature-box">
+            <div>প্রাপক স্বাক্ষর</div>
+            <div>(Receiver Signature)</div>
+            <div class="signature-line"></div>
+            <div>তারিখ: ${new Date().toLocaleDateString('bn-BD')}</div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+  
+  printWindow.document.close();
+  printWindow.print();
+};
 
   const getCategoryColor = (category) => {
     const colors = {
@@ -430,14 +427,17 @@ const Accounts = () => {
     return type === 'credit' ? 'success' : 'error';
   };
 
-  const totalCashInHand = balance ? balance.closing_balance : 0;
+// Calculate cash in hand (Today's Income - Today's Expense)
+const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
 
   if (loading && !balance) {
     return (
       <Layout>
         <Box sx={{ width: '100%', mt: 3 }}>
           <LinearProgress />
-          <Typography align="center" sx={{ mt: 2 }}>Loading accounts data...</Typography>
+          <Typography variant="h4" color="primary.main" fontWeight="bold">
+  ৳{Math.max(0, totalCashInHand).toLocaleString()} {/* Never show negative */}
+</Typography>
         </Box>
       </Layout>
     );

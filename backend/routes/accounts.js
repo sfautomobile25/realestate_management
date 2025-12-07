@@ -10,44 +10,78 @@ const generateVoucherNumber = (type) => {
   const date = new Date();
   const year = date.getFullYear().toString().slice(-2);
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
   const random = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}${year}${month}${random}`;
+  return `${prefix}${year}${month}${day}${random}`;
 };
-// Helper function to convert number to Bangla words
+
+// Helper function to convert number to Bangla words - FIXED
 const numberToBanglaWords = (num) => {
+  if (!num || isNaN(num)) return 'শূন্য টাকা';
+  
+  const n = parseFloat(num);
   const units = ['', 'এক', 'দুই', 'তিন', 'চার', 'পাঁচ', 'ছয়', 'সাত', 'আট', 'নয়'];
+  const teens = ['দশ', 'এগারো', 'বারো', 'তেরো', 'চৌদ্দ', 'পনেরো', 'ষোল', 'সতেরো', 'আঠারো', 'উনিশ'];
   const tens = ['', 'দশ', 'বিশ', 'ত্রিশ', 'চল্লিশ', 'পঞ্চাশ', 'ষাট', 'সত্তর', 'আশি', 'নব্বই'];
   const hundreds = ['', 'একশ', 'দুইশ', 'তিনশ', 'চারশ', 'পাঁচশ', 'ছয়শ', 'সাতশ', 'আটশ', 'নয়শ'];
   
-  let n = Math.floor(num);
   let words = '';
+  let amount = Math.floor(n);
   
-  if (n >= 100) {
-    words += hundreds[Math.floor(n / 100)] + ' ';
-    n %= 100;
+  // Handle crore
+  if (amount >= 10000000) {
+    words += units[Math.floor(amount / 10000000)] + ' কোটি ';
+    amount %= 10000000;
   }
   
-  if (n >= 10) {
-    words += tens[Math.floor(n / 10)] + ' ';
-    n %= 10;
+  // Handle lakh
+  if (amount >= 100000) {
+    words += units[Math.floor(amount / 100000)] + ' লক্ষ ';
+    amount %= 100000;
   }
   
-  if (n > 0) {
-    words += units[n] + ' ';
+  // Handle thousand
+  if (amount >= 1000) {
+    words += units[Math.floor(amount / 1000)] + ' হাজার ';
+    amount %= 1000;
   }
   
-  words += 'টাকা';
+  // Handle hundred
+  if (amount >= 100) {
+    words += hundreds[Math.floor(amount / 100)] + ' ';
+    amount %= 100;
+  }
   
-  // Add paisa if any
-  const paisa = Math.round((num - Math.floor(num)) * 100);
+  // Handle tens and units
+  if (amount >= 20) {
+    words += tens[Math.floor(amount / 10)] + ' ';
+    amount %= 10;
+  } else if (amount >= 10) {
+    words += teens[amount - 10] + ' ';
+    amount = 0;
+  }
+  
+  // Handle units
+  if (amount > 0) {
+    words += units[amount] + ' ';
+  }
+  
+  // Add টাকা
+  if (words.trim() === '') {
+    words = 'শূন্য';
+  }
+  words = words.trim() + ' টাকা';
+  
+  // Handle paisa
+  const paisa = Math.round((n - Math.floor(n)) * 100);
   if (paisa > 0) {
     words += ' ' + paisa + ' পয়সা';
   }
   
-  return words.trim();
+  return words;
 };
 
-// 1. Fix opening balance route - Add this near the top with other routes
+// Set opening balance - CAN ONLY INCREASE
 router.post('/opening-balance', async (req, res) => {
   try {
     const { date, amount } = req.body;
@@ -56,51 +90,87 @@ router.post('/opening-balance', async (req, res) => {
       return res.status(400).json({ message: 'Date and amount are required' });
     }
     
-    // Convert date to proper format
     const targetDate = new Date(date).toISOString().split('T')[0];
+    const amountNum = parseFloat(amount);
     
-    // Check if opening balance already exists for this date
-    const existingBalance = await CashBalance.findOne({
+    if (amountNum < 0) {
+      return res.status(400).json({ message: 'Opening balance cannot be negative' });
+    }
+    
+    // Get existing balance for this date
+    let cashBalance = await CashBalance.findOne({
       where: { date: targetDate }
     });
     
-    if (existingBalance) {
-      // Update existing balance
-      existingBalance.opening_balance = parseFloat(amount);
-      existingBalance.closing_balance = parseFloat(amount) + existingBalance.cash_in - existingBalance.cash_out;
-      await existingBalance.save();
-      return res.json(existingBalance);
+    if (!cashBalance) {
+      // Get previous day's closing balance
+      const previousBalance = await CashBalance.findOne({
+        where: {
+          date: {
+            [Op.lt]: targetDate
+          }
+        },
+        order: [['date', 'DESC']]
+      });
+      
+      // Opening balance can't be less than previous closing balance
+      const previousClosing = previousBalance ? previousBalance.closing_balance : 0;
+      if (amountNum < previousClosing) {
+        return res.status(400).json({ 
+          message: `Opening balance (${amountNum}) cannot be less than previous closing balance (${previousClosing})`
+        });
+      }
+      
+      cashBalance = await CashBalance.create({
+        date: targetDate,
+        opening_balance: amountNum,
+        cash_in: 0,
+        cash_out: 0,
+        closing_balance: amountNum, // Start with opening balance
+        bank_balance: 0,
+        mobile_banking_balance: 0
+      });
+    } else {
+      // Check if new amount is greater than current opening balance
+      if (amountNum < cashBalance.opening_balance) {
+        return res.status(400).json({ 
+          message: 'Opening balance can only be increased, not decreased'
+        });
+      }
+      
+      // Update opening balance and adjust closing balance
+      const difference = amountNum - cashBalance.opening_balance;
+      cashBalance.opening_balance = amountNum;
+      cashBalance.closing_balance += difference; // Increase closing balance by the difference
+      
+      await cashBalance.save();
     }
     
-    // Create new balance
-    const cashBalance = await CashBalance.create({
-      date: targetDate,
-      opening_balance: parseFloat(amount),
-      cash_in: 0,
-      cash_out: 0,
-      closing_balance: parseFloat(amount),
-      bank_balance: 0,
-      mobile_banking_balance: 0
-    });
-    
-    res.status(201).json(cashBalance);
+    res.json(cashBalance);
   } catch (error) {
     console.error('Error setting opening balance:', error);
     res.status(500).json({ message: error.message });
   }
 });
 
-// GET /balance - Get cash balance (FIXED)
+// Get daily balance summary - FIXED CALCULATION
 router.get('/balance', async (req, res) => {
   try {
     const { date } = req.query;
     const targetDate = date || new Date().toISOString().split('T')[0];
     
-    // Get today's transactions
+    // Get today's date range
     const todayStart = new Date(targetDate);
+    todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(targetDate);
     todayEnd.setHours(23, 59, 59, 999);
     
+    // Get cash balance record
+    let cashBalance = await CashBalance.findOne({
+      where: { date: targetDate }
+    });
+    
+    // Get ALL transactions for today
     const todayTransactions = await Account.findAll({
       where: {
         date: {
@@ -110,7 +180,7 @@ router.get('/balance', async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
     
-    // Calculate totals from transactions
+    // Calculate TODAY'S totals (fresh calculation)
     const todayIncome = todayTransactions
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
@@ -119,38 +189,36 @@ router.get('/balance', async (req, res) => {
       .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
     
-    // Get or create cash balance
-    let cashBalance = await CashBalance.findOne({
-      where: { date: targetDate }
-    });
+    const cashInHand = todayIncome - todayExpense;
     
     if (!cashBalance) {
-      // Get latest balance for opening balance
-      const latestBalance = await CashBalance.findOne({
+      // Get previous day's closing balance for opening
+      const previousBalance = await CashBalance.findOne({
+        where: {
+          date: {
+            [Op.lt]: targetDate
+          }
+        },
         order: [['date', 'DESC']]
       });
       
-      const openingBalance = latestBalance ? latestBalance.closing_balance : 0;
+      const openingBalance = previousBalance ? previousBalance.closing_balance : 0;
+      const closingBalance = openingBalance + cashInHand; // Opening + (Income - Expense)
       
       cashBalance = {
         date: targetDate,
         opening_balance: openingBalance,
         cash_in: todayIncome,
         cash_out: todayExpense,
-        closing_balance: openingBalance + todayIncome - todayExpense,
+        closing_balance: Math.max(0, closingBalance), // Never negative
         bank_balance: 0,
         mobile_banking_balance: 0
       };
-      
-      // Save if needed
-      // await CashBalance.create(cashBalance);
     } else {
-      // Update with fresh totals
+      // Update with fresh calculation
       cashBalance.cash_in = todayIncome;
       cashBalance.cash_out = todayExpense;
-      cashBalance.closing_balance = cashBalance.opening_balance + todayIncome - todayExpense;
-      
-      // Save updates
+      cashBalance.closing_balance = Math.max(0, cashBalance.opening_balance + cashInHand);
       await cashBalance.save();
     }
     
@@ -174,7 +242,8 @@ router.get('/balance', async (req, res) => {
       incomeCategories,
       expenseCategories,
       totalIncome: todayIncome,
-      totalExpense: todayExpense
+      totalExpense: todayExpense,
+      cashInHand: cashInHand // Today's income minus today's expense
     });
   } catch (error) {
     console.error('Error fetching balance:', error);
@@ -182,7 +251,7 @@ router.get('/balance', async (req, res) => {
   }
 });
 
-// 3. Fix transaction creation to properly update cash balance
+// Create account transaction - FIXED
 router.post('/', async (req, res) => {
   const transaction = await sequelize.transaction();
   
@@ -195,10 +264,16 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
     
+    const amountNum = parseFloat(amount);
+    if (amountNum <= 0) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Amount must be greater than 0' });
+    }
+    
     // Generate voucher details
     const voucherType = type === 'income' ? 'credit' : 'debit';
     const voucherNumber = generateVoucherNumber(voucherType);
-    const amountInBangla = numberToBanglaWords(parseFloat(amount));
+    const amountInBangla = numberToBanglaWords(amountNum); // FIXED
     
     // Create account transaction
     const account = await Account.create({
@@ -209,7 +284,7 @@ router.post('/', async (req, res) => {
       description,
       type,
       category,
-      amount: parseFloat(amount),
+      amount: amountNum,
       payment_method: payment_method || 'cash',
       reference_number,
       notes,
@@ -223,74 +298,9 @@ router.post('/', async (req, res) => {
       where: { date: transactionDate },
       transaction
     });
-    
-  // POST / - Create transaction (FIXED VERSION)
-router.post('/', async (req, res) => {
-  const transaction = await sequelize.transaction();
-  
-  try {
-    const { date, name, description, type, category, amount, payment_method, reference_number, notes } = req.body;
-    
-    // Validate required fields
-    if (!name || !description || !type || !category || !amount) {
-      await transaction.rollback();
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
-    
-    // Generate voucher details
-    const voucherType = type === 'income' ? 'credit' : 'debit';
-    const voucherNumber = generateVoucherNumber(voucherType);
-    const amountInBangla = numberToBanglaWords(parseFloat(amount));
-    
-    // Create account transaction
-    const account = await Account.create({
-      voucher_number: voucherNumber,
-      voucher_type: voucherType,
-      date: date || new Date(),
-      name,
-      description,
-      type,
-      category,
-      amount: parseFloat(amount),
-      payment_method: payment_method || 'cash',
-      reference_number,
-      notes,
-      amount_in_bangla: amountInBangla
-    }, { transaction });
-    
-    // Update cash balance for the day
-    const transactionDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-    
-    let cashBalance = await CashBalance.findOne({
-      where: { date: transactionDate },
-      transaction
-    });
-    
-    // Get all today's transactions including the new one
-    const todayStart = new Date(transactionDate);
-    const todayEnd = new Date(transactionDate);
-    todayEnd.setHours(23, 59, 59, 999);
-    
-    const todayTransactions = await Account.findAll({
-      where: {
-        date: {
-          [Op.between]: [todayStart, todayEnd]
-        }
-      },
-      transaction
-    });
-    
-    // Calculate totals from all transactions
-    const todayIncome = todayTransactions
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-    
-    const todayExpense = todayTransactions
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
     
     if (!cashBalance) {
-      // Get previous day's closing balance for opening balance
+      // Get previous day's closing balance
       const previousBalance = await CashBalance.findOne({
         where: {
           date: {
@@ -303,46 +313,76 @@ router.post('/', async (req, res) => {
       
       const openingBalance = previousBalance ? previousBalance.closing_balance : 0;
       
+      // Calculate fresh totals for today
+      const todayStart = new Date(transactionDate);
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(transactionDate);
+      todayEnd.setHours(23, 59, 59, 999);
+      
+      const todayTransactions = await Account.findAll({
+        where: {
+          date: {
+            [Op.between]: [todayStart, todayEnd]
+          }
+        },
+        transaction
+      });
+      
+      let todayIncome = 0;
+      let todayExpense = 0;
+      
+      todayTransactions.forEach(t => {
+        if (t.type === 'income') todayIncome += parseFloat(t.amount || 0);
+        else if (t.type === 'expense') todayExpense += parseFloat(t.amount || 0);
+      });
+      
+      const cashInHand = todayIncome - todayExpense;
+      
       cashBalance = await CashBalance.create({
         date: transactionDate,
         opening_balance: openingBalance,
         cash_in: todayIncome,
         cash_out: todayExpense,
-        closing_balance: openingBalance + todayIncome - todayExpense,
+        closing_balance: Math.max(0, openingBalance + cashInHand),
         bank_balance: 0,
         mobile_banking_balance: 0
       }, { transaction });
     } else {
-      // Update existing balance with accurate totals
+      // Recalculate fresh totals
+      const todayStart = new Date(transactionDate);
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(transactionDate);
+      todayEnd.setHours(23, 59, 59, 999);
+      
+      const todayTransactions = await Account.findAll({
+        where: {
+          date: {
+            [Op.between]: [todayStart, todayEnd]
+          }
+        },
+        transaction
+      });
+      
+      let todayIncome = 0;
+      let todayExpense = 0;
+      
+      todayTransactions.forEach(t => {
+        if (t.type === 'income') todayIncome += parseFloat(t.amount || 0);
+        else if (t.type === 'expense') todayExpense += parseFloat(t.amount || 0);
+      });
+      
+      const cashInHand = todayIncome - todayExpense;
+      
       cashBalance.cash_in = todayIncome;
       cashBalance.cash_out = todayExpense;
-      cashBalance.closing_balance = cashBalance.opening_balance + todayIncome - todayExpense;
+      cashBalance.closing_balance = Math.max(0, cashBalance.opening_balance + cashInHand);
       
       await cashBalance.save({ transaction });
     }
     
     await transaction.commit();
     
-    // Get fresh balance after commit
-    const freshBalance = await CashBalance.findOne({
-      where: { date: transactionDate }
-    });
-    
-    res.status(201).json({
-      transaction: account,
-      voucher_number: voucherNumber,
-      balance: freshBalance
-    });
-  } catch (error) {
-    await transaction.rollback();
-    console.error('Error creating transaction:', error);
-    res.status(400).json({ message: error.message });
-  }
-});
-    
-    await transaction.commit();
-    
-    // Get fresh balance after commit
+    // Get fresh balance
     const freshBalance = await CashBalance.findOne({
       where: { date: transactionDate }
     });
@@ -377,87 +417,6 @@ router.get('/voucher/:voucherNumber', async (req, res) => {
   }
 });
 
-// Set opening balance
-router.post('/opening-balance', async (req, res) => {
-  const transaction = await sequelize.transaction();
-  
-  try {
-    const { date, amount, notes } = req.body;
-    
-    if (!amount) {
-      return res.status(400).json({ message: 'Amount is required' });
-    }
-    
-    const targetDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-    
-    // Create opening balance transaction
-    const voucherNumber = generateVoucherNumber('credit');
-    const amountInWords = numberToBanglaWords(Math.floor(amount));
-    
-    const openingBalance = await Account.create({
-      voucher_number: voucherNumber,
-      voucher_type: 'credit',
-      date: targetDate,
-      name: 'Opening Balance',
-      description: 'Opening cash balance',
-      type: 'opening_balance',
-      category: 'Opening Balance',
-      amount: parseFloat(amount),
-      amount_in_words: amountInWords,
-      payment_method: 'cash',
-      notes: notes || 'Initial opening balance',
-      accountant_signature: 'Accountant',
-      ceo_signature: 'CEO/MD'
-    }, { transaction });
-    
-    // Create or update cash balance
-    let cashBalance = await CashBalance.findOne({
-      where: { date: targetDate },
-      transaction
-    });
-    
-    if (!cashBalance) {
-      cashBalance = await CashBalance.create({
-        date: targetDate,
-        opening_balance: parseFloat(amount),
-        cash_in: parseFloat(amount),
-        cash_out: 0,
-        closing_balance: parseFloat(amount),
-        bank_balance: 0,
-        mobile_banking_balance: 0
-      }, { transaction });
-    } else {
-      cashBalance.opening_balance = parseFloat(amount);
-      cashBalance.cash_in += parseFloat(amount);
-      cashBalance.closing_balance += parseFloat(amount);
-      await cashBalance.save({ transaction });
-    }
-    
-    await transaction.commit();
-    
-    res.status(201).json(openingBalance);
-  } catch (error) {
-    await transaction.rollback();
-    res.status(400).json({ message: error.message });
-  }
-});
-// Get today's opening balance
-router.get('/opening-balance/today', async (req, res) => {
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    
-    const cashBalance = await CashBalance.findOne({
-      where: { date: today }
-    });
-    
-    res.json({
-      opening_balance: cashBalance ? cashBalance.opening_balance : 0,
-      date: today
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
 // Get monthly summary
 router.get('/monthly-summary', async (req, res) => {
   try {
@@ -489,19 +448,19 @@ router.get('/monthly-summary', async (req, res) => {
       
       const dayIncome = dayTransactions
         .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
       
       const dayExpense = dayTransactions
         .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
       
-      runningBalance += (dayIncome - dayExpense);
+      const dayCashInHand = dayIncome - dayExpense;
       
       dailyBalances[dateStr] = {
         date: dateStr,
         income: dayIncome,
         expense: dayExpense,
-        balance: runningBalance
+        cashInHand: dayCashInHand
       };
     }
     
@@ -512,23 +471,26 @@ router.get('/monthly-summary', async (req, res) => {
     transactions.forEach(transaction => {
       if (transaction.type === 'income') {
         incomeByCategory[transaction.category] = 
-          (incomeByCategory[transaction.category] || 0) + parseFloat(transaction.amount);
+          (incomeByCategory[transaction.category] || 0) + parseFloat(transaction.amount || 0);
       } else if (transaction.type === 'expense') {
         expenseByCategory[transaction.category] = 
-          (expenseByCategory[transaction.category] || 0) + parseFloat(transaction.amount);
+          (expenseByCategory[transaction.category] || 0) + parseFloat(transaction.amount || 0);
       }
     });
     
+    const totalIncome = transactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+    
+    const totalExpense = transactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+    
     res.json({
       monthlySummary: {
-        totalIncome: transactions
-          .filter(t => t.type === 'income')
-          .reduce((sum, t) => sum + parseFloat(t.amount), 0),
-        totalExpense: transactions
-          .filter(t => t.type === 'expense')
-          .reduce((sum, t) => sum + parseFloat(t.amount), 0),
-        netBalance: transactions
-          .reduce((sum, t) => sum + (t.type === 'income' ? parseFloat(t.amount) : -parseFloat(t.amount)), 0)
+        totalIncome,
+        totalExpense,
+        netCashInHand: totalIncome - totalExpense
       },
       dailyBalances: Object.values(dailyBalances),
       incomeByCategory,
