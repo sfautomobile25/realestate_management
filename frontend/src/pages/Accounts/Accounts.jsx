@@ -34,6 +34,7 @@ import {
   IconButton,
   Tooltip
 } from '@mui/material';
+import axios from 'axios';
 import {
   Add,
   Receipt,
@@ -64,9 +65,10 @@ import {
   RemoveCircle,
   History,
     Download as DownloadIcon,
-    PictureAsPdf,
     Assessment,
-  Analytics
+  Analytics,
+  PictureAsPdf,
+  CalendarToday
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -105,6 +107,11 @@ const Accounts = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [openDownloadDialog, setOpenDownloadDialog] = useState(false);
+  const [downloadType, setDownloadType] = useState('credit');
+  const [downloadStartDate, setDownloadStartDate] = useState(new Date());
+  const [downloadEndDate, setDownloadEndDate] = useState(new Date());  
+  
 
   const [transactionForm, setTransactionForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -437,68 +444,38 @@ const Accounts = () => {
     return type === 'credit' ? 'success' : 'error';
   };
 
-  const handleDownloadCredit = async () => {
+const handleDownloadPDF = async () => {
   try {
-    const startDate = new Date();
-    startDate.setDate(1); // First day of current month
-    const endDate = new Date();
+    const formatDate = (date) => {
+      return date.toISOString().split('T')[0];
+    };
     
-    const response = await accountAPI.downloadCreditPDF({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
+    const response = await accountAPI[downloadType === 'credit' ? 'downloadCreditPDF' : 'downloadDebitPDF']({
+      startDate: formatDate(downloadStartDate),
+      endDate: formatDate(downloadEndDate)
     });
     
     // Create download link
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `credit-transactions-${Date.now()}.pdf`);
+    link.setAttribute('download', `${downloadType}-transactions-${formatDate(downloadStartDate)}-to-${formatDate(downloadEndDate)}.pdf`);
     document.body.appendChild(link);
     link.click();
     link.remove();
     
     setSnackbar({ 
       open: true, 
-      message: 'Credit transactions PDF downloaded successfully', 
+      message: `${downloadType === 'credit' ? 'Credit' : 'Debit'} PDF downloaded successfully`, 
       severity: 'success' 
     });
+    
+    setOpenDownloadDialog(false);
   } catch (error) {
+    console.error('Download error:', error);
     setSnackbar({ 
       open: true, 
-      message: 'Failed to download PDF: ' + error.message, 
-      severity: 'error' 
-    });
-  }
-};
-
-const handleDownloadDebit = async () => {
-  try {
-    const startDate = new Date();
-    startDate.setDate(1);
-    const endDate = new Date();
-    
-    const response = await accountAPI.downloadDebitPDF({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
-    });
-    
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `debit-transactions-${Date.now()}.pdf`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    
-    setSnackbar({ 
-      open: true, 
-      message: 'Debit transactions PDF downloaded successfully', 
-      severity: 'success' 
-    });
-  } catch (error) {
-    setSnackbar({ 
-      open: true, 
-      message: 'Failed to download PDF: ' + error.message, 
+      message: `Failed to download PDF: ${error.response?.data?.message || error.message}`, 
       severity: 'error' 
     });
   }
@@ -551,18 +528,25 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
                 </Typography>
               </Box>
               <Stack direction="row" spacing={2}>
+                // Replace the old download buttons with these:
                 <Button
                   variant="outlined"
-                  startIcon={<DownloadIcon />}
-                  onClick={handleDownloadCredit}
+                  startIcon={<PictureAsPdf />}
+                  onClick={() => {
+                    setDownloadType('credit');
+                    setOpenDownloadDialog(true);
+                  }}
                   sx={{ color: '#4caf50', borderColor: '#4caf50' }}
                 >
                   Credit PDF
                 </Button>
                 <Button
                   variant="outlined"
-                  startIcon={<DownloadIcon />}
-                  onClick={handleDownloadDebit}
+                  startIcon={<PictureAsPdf />}
+                  onClick={() => {
+                    setDownloadType('debit');
+                    setOpenDownloadDialog(true);
+                  }}
                   sx={{ color: '#f44336', borderColor: '#f44336' }}
                 >
                   Debit PDF
@@ -604,7 +588,7 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
                     <Typography variant="h6">Today's Income</Typography>
                   </Box>
                   <Typography variant="h4" color="success.main" fontWeight="bold">
-                    ৳{balance?.cash_in?.toLocaleString() || '0'}
+                    ৳{(balance?.cash_in || 0).toFixed(2)}
                   </Typography>
                 </CardContent>
               </Card>
@@ -618,8 +602,9 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
                     <Typography variant="h6">Today's Expense</Typography>
                   </Box>
                   <Typography variant="h4" color="error.main" fontWeight="bold">
-                    ৳{balance?.cash_out?.toLocaleString() || '0'}
+                    ৳{(balance?.cash_out || 0).toFixed(2)}
                   </Typography>
+
                 </CardContent>
               </Card>
             </Grid>
@@ -632,8 +617,8 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
                     <Typography variant="h6">Cash in Hand</Typography>
                   </Box>
                   <Typography variant="h4" color="primary.main" fontWeight="bold">
-                    ৳{totalCashInHand.toLocaleString()}
-                  </Typography>
+                  ৳{(balance?.closing_balance || 0).toFixed(2)}
+                </Typography>
                 </CardContent>
               </Card>
             </Grid>
@@ -1140,6 +1125,80 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
       }}
     >
       Export as PDF
+    </Button>
+  </DialogActions>
+</Dialog>
+
+{/* Download Date Selection Dialog */}
+<Dialog open={openDownloadDialog} onClose={() => setOpenDownloadDialog(false)} maxWidth="sm" fullWidth>
+  <DialogTitle>
+    <Box display="flex" alignItems="center">
+      <CalendarToday sx={{ mr: 1 }} />
+      Select Date Range for {downloadType === 'credit' ? 'Credit' : 'Debit'} Report
+    </Box>
+  </DialogTitle>
+  <DialogContent>
+    <Box sx={{ mt: 2 }}>
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <Typography gutterBottom fontWeight="bold">
+            Report Type:
+          </Typography>
+          <Box display="flex" gap={2} mb={3}>
+            <Button
+              variant={downloadType === 'credit' ? 'contained' : 'outlined'}
+              color="success"
+              onClick={() => setDownloadType('credit')}
+              fullWidth
+            >
+              Credit Report
+            </Button>
+            <Button
+              variant={downloadType === 'debit' ? 'contained' : 'outlined'}
+              color="error"
+              onClick={() => setDownloadType('debit')}
+              fullWidth
+            >
+              Debit Report
+            </Button>
+          </Box>
+        </Grid>
+        
+        <Grid item xs={12} sm={6}>
+          <DatePicker
+            label="From Date"
+            value={downloadStartDate}
+            onChange={(newValue) => setDownloadStartDate(newValue)}
+            renderInput={(params) => <TextField {...params} fullWidth />}
+          />
+        </Grid>
+        
+        <Grid item xs={12} sm={6}>
+          <DatePicker
+            label="To Date"
+            value={downloadEndDate}
+            onChange={(newValue) => setDownloadEndDate(newValue)}
+            renderInput={(params) => <TextField {...params} fullWidth />}
+          />
+        </Grid>
+        
+        <Grid item xs={12}>
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Report will include transactions from {downloadStartDate.toLocaleDateString()} to {downloadEndDate.toLocaleDateString()}
+          </Alert>
+        </Grid>
+      </Grid>
+    </Box>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setOpenDownloadDialog(false)}>Cancel</Button>
+    <Button 
+      variant="contained" 
+      color="primary"
+      onClick={handleDownloadPDF}
+      startIcon={<PictureAsPdf />}
+    >
+      Generate PDF
     </Button>
   </DialogActions>
 </Dialog>

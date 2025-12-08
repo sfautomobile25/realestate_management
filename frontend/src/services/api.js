@@ -182,10 +182,9 @@ export const accountAPI = {
   getVoucher: (voucherNumber) => api.get(`/accounts/voucher/${voucherNumber}`),
   getMonthlySummary: (params = {}) => api.get('/accounts/monthly-summary', { params }),
   getAllTransactions: (params = {}) => api.get('/accounts', { params }),
-    
-   downloadCreditPDF: (params = {}) => api.get('/accounts/download/credit', { 
+  downloadCreditPDF: (params = {}) => api.get('/accounts/download/credit', { 
     params,
-    responseType: 'blob'  // Important for file download
+    responseType: 'blob'
   }),
   
   downloadDebitPDF: (params = {}) => api.get('/accounts/download/debit', { 
@@ -193,7 +192,7 @@ export const accountAPI = {
     responseType: 'blob'
   }),
   
-  getYearlySummary: (year) => api.get(`/accounts/yearly-summary/${year}`) 
+  getYearlySummary: (year) => api.get(`/accounts/yearly-summary/${year}`)
 };
 
 

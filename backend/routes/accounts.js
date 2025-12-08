@@ -503,14 +503,18 @@ router.get('/monthly-summary', async (req, res) => {
   }
 });
 
-// Download Credit Transactions PDF
+// Update the download credit route:
 router.get('/download/credit', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
     const start = startDate ? new Date(startDate) : new Date();
+    start.setHours(0, 0, 0, 0);
+    
     const end = endDate ? new Date(endDate) : new Date();
     end.setHours(23, 59, 59, 999);
+    
+    console.log('Downloading Credit PDF:', { start, end });
     
     const transactions = await Account.findAll({
       where: {
@@ -519,26 +523,43 @@ router.get('/download/credit', async (req, res) => {
           [Op.between]: [start, end]
         }
       },
-      order: [['date', 'ASC']]
+      order: [['date', 'ASC'], ['voucher_number', 'ASC']],
+      raw: true // Get plain objects for PDF generation
+    });
+    
+    console.log(`Found ${transactions.length} credit transactions`);
+    
+    // Log first few transactions for debugging
+    transactions.slice(0, 3).forEach((t, i) => {
+      console.log(`Transaction ${i + 1}:`, {
+        voucher: t.voucher_number,
+        amount: t.amount,
+        date: t.date
+      });
     });
     
     const pdfBuffer = await generateTransactionPDF(transactions, 'credit', start, end);
     
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="credit-transactions-${Date.now()}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="credit-vouchers-${Date.now()}.pdf"`);
     res.send(pdfBuffer);
   } catch (error) {
-    console.error('Error generating PDF:', error);
-    res.status(500).json({ message: error.message });
+    console.error('Error generating Credit PDF:', error);
+    res.status(500).json({ 
+      message: error.message,
+      stack: error.stack 
+    });
   }
 });
 
-// Download Debit Transactions PDF
+// Update the download debit route similarly:
 router.get('/download/debit', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
     const start = startDate ? new Date(startDate) : new Date();
+    start.setHours(0, 0, 0, 0);
+    
     const end = endDate ? new Date(endDate) : new Date();
     end.setHours(23, 59, 59, 999);
     
@@ -549,17 +570,23 @@ router.get('/download/debit', async (req, res) => {
           [Op.between]: [start, end]
         }
       },
-      order: [['date', 'ASC']]
+      order: [['date', 'ASC'], ['voucher_number', 'ASC']],
+      raw: true
     });
+    
+    console.log(`Found ${transactions.length} debit transactions`);
     
     const pdfBuffer = await generateTransactionPDF(transactions, 'debit', start, end);
     
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="debit-transactions-${Date.now()}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="debit-vouchers-${Date.now()}.pdf"`);
     res.send(pdfBuffer);
   } catch (error) {
-    console.error('Error generating PDF:', error);
-    res.status(500).json({ message: error.message });
+    console.error('Error generating Debit PDF:', error);
+    res.status(500).json({ 
+      message: error.message,
+      stack: error.stack 
+    });
   }
 });
 
