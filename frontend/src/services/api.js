@@ -192,7 +192,11 @@ export const accountAPI = {
     responseType: 'blob'
   }),
   
-  getYearlySummary: (year) => api.get(`/accounts/yearly-summary/${year}`)
+  getYearlySummary: (year) => api.get(`/accounts/yearly-summary/${year}`),
+  downloadYearlyExcel: (year) => api.get(`/accounts/download/yearly/${year}/excel`, {
+    responseType: 'blob'
+  }),
+
 };
 
 

@@ -32,7 +32,8 @@ import {
   LinearProgress,
   Stack,
   IconButton,
-  Tooltip
+  Tooltip,
+  CircularProgress  
 } from '@mui/material';
 import axios from 'axios';
 import {
@@ -68,7 +69,9 @@ import {
     Assessment,
   Analytics,
   PictureAsPdf,
-  CalendarToday
+  CalendarToday,
+   TableChart,
+  GridOn
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -490,6 +493,35 @@ const handleOpenYearlyReport = async () => {
     setSnackbar({ 
       open: true, 
       message: 'Failed to load yearly report: ' + error.message, 
+      severity: 'error' 
+    });
+  }
+};
+
+const handleExportExcel = async () => {
+  try {
+    const response = await accountAPI.downloadYearlyExcel(selectedYear);
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `yearly-report-${selectedYear}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    
+    setSnackbar({ 
+      open: true, 
+      message: `Yearly report for ${selectedYear} exported to Excel successfully`, 
+      severity: 'success' 
+    });
+    
+  } catch (error) {
+    console.error('Excel export error:', error);
+    setSnackbar({ 
+      open: true, 
+      message: `Failed to export Excel: ${error.response?.data?.message || error.message}`, 
       severity: 'error' 
     });
   }
@@ -1027,84 +1059,115 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
             
           )}
 
-          {/* Yearly Report Dialog */}
+{/* Yearly Report Dialog */}
 <Dialog open={openYearlyReport} onClose={() => setOpenYearlyReport(false)} maxWidth="lg" fullWidth>
   <DialogTitle>
-    <Box display="flex" alignItems="center">
-      <Analytics sx={{ mr: 2 }} />
-      Yearly Report - {selectedYear}
+    <Box display="flex" alignItems="center" justifyContent="space-between">
+      <Box display="flex" alignItems="center">
+        <Analytics sx={{ mr: 2 }} />
+        <Typography variant="h6">
+          Yearly Financial Report - {selectedYear}
+        </Typography>
+      </Box>
+      <Box>
+        <TextField
+          select
+          size="small"
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          sx={{ minWidth: 120 }}
+        >
+          {[2022, 2023, 2024, 2025, 2026].map((year) => (
+            <MenuItem key={year} value={year}>{year}</MenuItem>
+          ))}
+        </TextField>
+      </Box>
     </Box>
   </DialogTitle>
+  
   <DialogContent>
-    {yearlySummary && (
+    {yearlySummary ? (
       <Box>
-        {/* Yearly Summary Cards */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={4}>
-            <Card>
+        {/* Summary Cards */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ bgcolor: '#e8f5e9' }}>
               <CardContent>
-                <Typography color="textSecondary">Total Income</Typography>
-                <Typography variant="h4" color="success.main">
-                  ৳{yearlySummary.totalIncome?.toLocaleString() || '0'}
+                <Typography variant="body2" color="textSecondary">Total Income</Typography>
+                <Typography variant="h5" color="success.main" fontWeight="bold">
+                  ৳{(yearlySummary.totalIncome || 0).toFixed(2)}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={4}>
-            <Card>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ bgcolor: '#ffebee' }}>
               <CardContent>
-                <Typography color="textSecondary">Total Expense</Typography>
-                <Typography variant="h4" color="error.main">
-                  ৳{yearlySummary.totalExpense?.toLocaleString() || '0'}
+                <Typography variant="body2" color="textSecondary">Total Expense</Typography>
+                <Typography variant="h5" color="error.main" fontWeight="bold">
+                  ৳{(yearlySummary.totalExpense || 0).toFixed(2)}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={4}>
-            <Card>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ bgcolor: '#e3f2fd' }}>
               <CardContent>
-                <Typography color="textSecondary">Yearly Balance</Typography>
-                <Typography variant="h4" color="primary.main">
-                  ৳{yearlySummary.yearlyBalance?.toLocaleString() || '0'}
+                <Typography variant="body2" color="textSecondary">Yearly Balance</Typography>
+                <Typography variant="h5" color="primary.main" fontWeight="bold">
+                  ৳{(yearlySummary.yearlyBalance || 0).toFixed(2)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ bgcolor: '#fff3e0' }}>
+              <CardContent>
+                <Typography variant="body2" color="textSecondary">Total Transactions</Typography>
+                <Typography variant="h5" color="warning.main" fontWeight="bold">
+                  {yearlySummary.totalTransactions || 0}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
         </Grid>
-        
+
         {/* Monthly Breakdown */}
         <Typography variant="h6" gutterBottom>
           Monthly Breakdown
         </Typography>
-        <TableContainer component={Paper}>
+        <TableContainer component={Paper} sx={{ mb: 3 }}>
           <Table>
             <TableHead>
-              <TableRow>
-                <TableCell>Month</TableCell>
-                <TableCell>Income</TableCell>
-                <TableCell>Expense</TableCell>
-                <TableCell>Net</TableCell>
+              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                <TableCell><strong>Month</strong></TableCell>
+                <TableCell align="right"><strong>Income</strong></TableCell>
+                <TableCell align="right"><strong>Expense</strong></TableCell>
+                <TableCell align="right"><strong>Net Balance</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {Object.entries(yearlySummary.monthlySummary || {}).map(([month, data]) => (
-                <TableRow key={month}>
+                <TableRow key={month} hover>
                   <TableCell>
                     {new Date(2000, parseInt(month), 1).toLocaleDateString('en-US', { month: 'long' })}
                   </TableCell>
-                  <TableCell>
-                    <Typography color="success.main">
-                      ৳{data.income?.toLocaleString() || '0'}
+                  <TableCell align="right">
+                    <Typography color="success.main" fontWeight="medium">
+                      ৳{(data.income || 0).toFixed(2)}
                     </Typography>
                   </TableCell>
-                  <TableCell>
-                    <Typography color="error.main">
-                      ৳{data.expense?.toLocaleString() || '0'}
+                  <TableCell align="right">
+                    <Typography color="error.main" fontWeight="medium">
+                      ৳{(data.expense || 0).toFixed(2)}
                     </Typography>
                   </TableCell>
-                  <TableCell>
-                    <Typography color={data.net >= 0 ? 'success.main' : 'error.main'}>
-                      ৳{data.net?.toLocaleString() || '0'}
+                  <TableCell align="right">
+                    <Typography 
+                      color={data.net >= 0 ? 'success.main' : 'error.main'} 
+                      fontWeight="bold"
+                    >
+                      ৳{(data.net || 0).toFixed(2)}
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -1112,23 +1175,95 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* Category Breakdown */}
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Typography variant="h6" gutterBottom>Income Categories</Typography>
+            {Object.entries(yearlySummary.incomeByCategory || {}).length > 0 ? (
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Category</TableCell>
+                      <TableCell align="right">Amount</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.entries(yearlySummary.incomeByCategory || {}).map(([category, amount]) => (
+                      <TableRow key={category}>
+                        <TableCell>{category}</TableCell>
+                        <TableCell align="right">
+                          <Typography color="success.main">
+                            ৳{(amount || 0).toFixed(2)}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Paper sx={{ p: 2, textAlign: 'center' }}>
+                <Typography color="textSecondary">No income categories</Typography>
+              </Paper>
+            )}
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Typography variant="h6" gutterBottom>Expense Categories</Typography>
+            {Object.entries(yearlySummary.expenseByCategory || {}).length > 0 ? (
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Category</TableCell>
+                      <TableCell align="right">Amount</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {Object.entries(yearlySummary.expenseByCategory || {}).map(([category, amount]) => (
+                      <TableRow key={category}>
+                        <TableCell>{category}</TableCell>
+                        <TableCell align="right">
+                          <Typography color="error.main">
+                            ৳{(amount || 0).toFixed(2)}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Paper sx={{ p: 2, textAlign: 'center' }}>
+                <Typography color="textSecondary">No expense categories</Typography>
+              </Paper>
+            )}
+          </Grid>
+        </Grid>
+      </Box>
+    ) : (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <LinearProgress sx={{ mb: 2 }} />
+        <Typography sx={{ mt: 2 }}>Loading yearly report data...</Typography>
       </Box>
     )}
   </DialogContent>
-  <DialogActions>
+  
+  <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
     <Button onClick={() => setOpenYearlyReport(false)}>Close</Button>
     <Button 
       variant="contained" 
-      onClick={() => {
-        // You can add PDF download for yearly report here
-        setOpenYearlyReport(false);
-      }}
+      color="success"
+      startIcon={<GridOn />}
+      onClick={handleExportExcel}
+      disabled={!yearlySummary}
     >
-      Export as PDF
+      Export as Excel
     </Button>
   </DialogActions>
 </Dialog>
-
 {/* Download Date Selection Dialog */}
 <Dialog open={openDownloadDialog} onClose={() => setOpenDownloadDialog(false)} maxWidth="sm" fullWidth>
   <DialogTitle>

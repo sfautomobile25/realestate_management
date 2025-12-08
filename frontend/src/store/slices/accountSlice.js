@@ -135,5 +135,17 @@ export const fetchYearlySummary = createAsyncThunk(
   }
 );
 
+export const downloadYearlyExcel = createAsyncThunk(
+  'accounts/downloadYearlyExcel',
+  async (year, { rejectWithValue }) => {
+    try {
+      const response = await accountAPI.downloadYearlyExcel(year);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
 export const { clearAccountError } = accountSlice.actions;
 export default accountSlice.reducer;

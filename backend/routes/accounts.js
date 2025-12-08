@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 const router = express.Router();
 const sequelize = require('../config/database');
 const { generateTransactionPDF } = require('../utils/pdfGenerator');
+const { generateYearlyExcel } = require('../utils/excelGenerator');
 
 // Helper function to generate voucher number
 const generateVoucherNumber = (type) => {
@@ -654,6 +655,83 @@ router.get('/yearly-summary/:year', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching yearly summary:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Download Yearly Report Excel
+router.get('/download/yearly/:year/excel', async (req, res) => {
+  try {
+    const year = parseInt(req.params.year) || new Date().getFullYear();
+    
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+    
+    const transactions = await Account.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate, endDate]
+        }
+      },
+      order: [['date', 'ASC']]
+    });
+    
+    // Monthly breakdown
+    const monthlySummary = {};
+    for (let month = 0; month < 12; month++) {
+      monthlySummary[month] = {
+        income: 0,
+        expense: 0,
+        net: 0
+      };
+    }
+    
+    // Category breakdown
+    const incomeByCategory = {};
+    const expenseByCategory = {};
+    
+    transactions.forEach(transaction => {
+      const month = new Date(transaction.date).getMonth();
+      
+      if (transaction.type === 'income') {
+        monthlySummary[month].income += parseFloat(transaction.amount);
+        incomeByCategory[transaction.category] = 
+          (incomeByCategory[transaction.category] || 0) + parseFloat(transaction.amount);
+      } else {
+        monthlySummary[month].expense += parseFloat(transaction.amount);
+        expenseByCategory[transaction.category] = 
+          (expenseByCategory[transaction.category] || 0) + parseFloat(transaction.amount);
+      }
+      
+      monthlySummary[month].net = monthlySummary[month].income - monthlySummary[month].expense;
+    });
+    
+    // Prepare yearly summary data
+    const yearlySummary = {
+      year,
+      monthlySummary,
+      incomeByCategory,
+      expenseByCategory,
+      totalTransactions: transactions.length,
+      totalIncome: transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount), 0),
+      totalExpense: transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount), 0),
+      yearlyBalance: transactions.reduce((acc, t) => {
+        return acc + (t.type === 'income' ? parseFloat(t.amount) : -parseFloat(t.amount));
+      }, 0)
+    };
+    
+    // Generate Excel file
+    const excelBuffer = await generateYearlyExcel(yearlySummary, year);
+    
+    // Set response headers
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="yearly-report-${year}.xlsx"`);
+    
+    // Send the Excel file
+    res.send(excelBuffer);
+    
+  } catch (error) {
+    console.error('Error generating Excel:', error);
     res.status(500).json({ message: error.message });
   }
 });
