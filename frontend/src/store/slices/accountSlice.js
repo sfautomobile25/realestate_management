@@ -99,5 +99,41 @@ const accountSlice = createSlice({
   }
 });
 
+export const downloadCreditPDF = createAsyncThunk(
+  'accounts/downloadCreditPDF',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await accountAPI.downloadCreditPDF(params);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+export const downloadDebitPDF = createAsyncThunk(
+  'accounts/downloadDebitPDF',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await accountAPI.downloadDebitPDF(params);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+export const fetchYearlySummary = createAsyncThunk(
+  'accounts/fetchYearlySummary',
+  async (year, { rejectWithValue }) => {
+    try {
+      const response = await accountAPI.getYearlySummary(year);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
 export const { clearAccountError } = accountSlice.actions;
 export default accountSlice.reducer;

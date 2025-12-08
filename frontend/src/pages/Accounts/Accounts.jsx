@@ -62,9 +62,15 @@ import {
   Business,
   AddCircle,
   RemoveCircle,
-  History
+  History,
+    Download as DownloadIcon,
+    PictureAsPdf,
+    Assessment,
+  Analytics
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import InsertChartIcon from '@mui/icons-material/InsertChart';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useDispatch, useSelector } from 'react-redux';
@@ -75,6 +81,7 @@ import {
   setOpeningBalance 
 } from '../../store/slices/accountSlice';
 import Layout from '../../components/common/Layout';
+import { accountAPI } from '../../services/api';
 
 const Accounts = () => {
   const dispatch = useDispatch();
@@ -88,6 +95,9 @@ const Accounts = () => {
     error 
   } = useSelector(state => state.accounts || {});
   
+  const [openYearlyReport, setOpenYearlyReport] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [yearlySummary, setYearlySummary] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
   const [openTransactionDialog, setOpenTransactionDialog] = useState(false);
   const [openOpeningBalanceDialog, setOpenOpeningBalanceDialog] = useState(false);
@@ -427,6 +437,87 @@ const Accounts = () => {
     return type === 'credit' ? 'success' : 'error';
   };
 
+  const handleDownloadCredit = async () => {
+  try {
+    const startDate = new Date();
+    startDate.setDate(1); // First day of current month
+    const endDate = new Date();
+    
+    const response = await accountAPI.downloadCreditPDF({
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    });
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `credit-transactions-${Date.now()}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    
+    setSnackbar({ 
+      open: true, 
+      message: 'Credit transactions PDF downloaded successfully', 
+      severity: 'success' 
+    });
+  } catch (error) {
+    setSnackbar({ 
+      open: true, 
+      message: 'Failed to download PDF: ' + error.message, 
+      severity: 'error' 
+    });
+  }
+};
+
+const handleDownloadDebit = async () => {
+  try {
+    const startDate = new Date();
+    startDate.setDate(1);
+    const endDate = new Date();
+    
+    const response = await accountAPI.downloadDebitPDF({
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    });
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `debit-transactions-${Date.now()}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    
+    setSnackbar({ 
+      open: true, 
+      message: 'Debit transactions PDF downloaded successfully', 
+      severity: 'success' 
+    });
+  } catch (error) {
+    setSnackbar({ 
+      open: true, 
+      message: 'Failed to download PDF: ' + error.message, 
+      severity: 'error' 
+    });
+  }
+};
+
+const handleOpenYearlyReport = async () => {
+  try {
+    const response = await accountAPI.getYearlySummary(selectedYear);
+    setYearlySummary(response.data);
+    setOpenYearlyReport(true);
+  } catch (error) {
+    setSnackbar({ 
+      open: true, 
+      message: 'Failed to load yearly report: ' + error.message, 
+      severity: 'error' 
+    });
+  }
+};
+
 // Calculate cash in hand (Today's Income - Today's Expense)
 const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
 
@@ -448,7 +539,7 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
           {/* Header */}
-          <Paper elevation={3} sx={{ mb: 3, p: 3, borderRadius: 2, bgcolor: '#1a237e', color: 'white' }}>
+          <Paper elevation={3} sx={{mb: 3, p: 3, borderRadius: 2, bgcolor: '#1a237e', color: 'white' }}>
             <Box display="flex" justifyContent="space-between" alignItems="center">
               <Box>
                 <Typography variant="h4" fontWeight="bold">
@@ -462,18 +553,33 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
               <Stack direction="row" spacing={2}>
                 <Button
                   variant="outlined"
-                  startIcon={<History />}
-                  onClick={handleOpenOpeningBalanceDialog}
-                  sx={{ color: 'white', borderColor: 'white', '&:hover': { borderColor: '#ccc' } }}
+                  startIcon={<DownloadIcon />}
+                  onClick={handleDownloadCredit}
+                  sx={{ color: '#4caf50', borderColor: '#4caf50' }}
                 >
-                  Opening Balance
+                  Credit PDF
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<DownloadIcon />}
+                  onClick={handleDownloadDebit}
+                  sx={{ color: '#f44336', borderColor: '#f44336' }}
+                >
+                  Debit PDF
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<Assessment />}
+                  onClick={handleOpenYearlyReport}
+                  sx={{ color: '#2196f3', borderColor: '#2196f3' }}
+                >
+                  Yearly Report
                 </Button>
                 <Button
                   variant="contained"
                   color="success"
                   startIcon={<AddCircle />}
                   onClick={() => handleOpenTransactionDialog('income')}
-                  sx={{ bgcolor: '#4caf50' }}
                 >
                   Add Income
                 </Button>
@@ -482,14 +588,12 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
                   color="error"
                   startIcon={<RemoveCircle />}
                   onClick={() => handleOpenTransactionDialog('expense')}
-                  sx={{ bgcolor: '#f44336' }}
                 >
                   Add Expense
                 </Button>
               </Stack>
             </Box>
           </Paper>
-
           {/* Quick Stats */}
           <Grid container spacing={3} mb={4}>
             <Grid item xs={12} sm={6} md={3}>
@@ -933,7 +1037,112 @@ const totalCashInHand = (balance?.cash_in || 0) - (balance?.cash_out || 0);
                 </Button>
               </DialogActions>
             </Dialog>
+
+            
+            
           )}
+
+          {/* Yearly Report Dialog */}
+<Dialog open={openYearlyReport} onClose={() => setOpenYearlyReport(false)} maxWidth="lg" fullWidth>
+  <DialogTitle>
+    <Box display="flex" alignItems="center">
+      <Analytics sx={{ mr: 2 }} />
+      Yearly Report - {selectedYear}
+    </Box>
+  </DialogTitle>
+  <DialogContent>
+    {yearlySummary && (
+      <Box>
+        {/* Yearly Summary Cards */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary">Total Income</Typography>
+                <Typography variant="h4" color="success.main">
+                  ৳{yearlySummary.totalIncome?.toLocaleString() || '0'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary">Total Expense</Typography>
+                <Typography variant="h4" color="error.main">
+                  ৳{yearlySummary.totalExpense?.toLocaleString() || '0'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary">Yearly Balance</Typography>
+                <Typography variant="h4" color="primary.main">
+                  ৳{yearlySummary.yearlyBalance?.toLocaleString() || '0'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+        
+        {/* Monthly Breakdown */}
+        <Typography variant="h6" gutterBottom>
+          Monthly Breakdown
+        </Typography>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Month</TableCell>
+                <TableCell>Income</TableCell>
+                <TableCell>Expense</TableCell>
+                <TableCell>Net</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Object.entries(yearlySummary.monthlySummary || {}).map(([month, data]) => (
+                <TableRow key={month}>
+                  <TableCell>
+                    {new Date(2000, parseInt(month), 1).toLocaleDateString('en-US', { month: 'long' })}
+                  </TableCell>
+                  <TableCell>
+                    <Typography color="success.main">
+                      ৳{data.income?.toLocaleString() || '0'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography color="error.main">
+                      ৳{data.expense?.toLocaleString() || '0'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography color={data.net >= 0 ? 'success.main' : 'error.main'}>
+                      ৳{data.net?.toLocaleString() || '0'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    )}
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setOpenYearlyReport(false)}>Close</Button>
+    <Button 
+      variant="contained" 
+      onClick={() => {
+        // You can add PDF download for yearly report here
+        setOpenYearlyReport(false);
+      }}
+    >
+      Export as PDF
+    </Button>
+  </DialogActions>
+</Dialog>
 
           <Snackbar
             open={snackbar.open}

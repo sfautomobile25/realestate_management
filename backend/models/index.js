@@ -160,28 +160,24 @@ SalaryPayment.belongsTo(Salary, {
   as: 'Salary'
 });
 
-// Sync database and create default data
+// Update the syncDatabase function in models/index.js
 const syncDatabase = async () => {
   try {
-    await sequelize.sync({ force: false });
+    // Use alter: true to update tables without dropping
+    await sequelize.sync({ alter: true });
     console.log('✅ Database synced successfully');
     
-    // In the syncDatabase function, update utility types:
-const utilityTypes = [
-  { 
-    name: 'Monthly Rent', 
-    description: 'Monthly rental payment', 
-    default_amount: 50000, 
-    calculation_type: 'fixed',
-    is_rent: true
-  },
-  { name: 'Lift Maintenance', description: 'Monthly lift maintenance fee', default_amount: 500, calculation_type: 'fixed' },
-  { name: 'Generator Maintenance', description: 'Monthly generator maintenance fee', default_amount: 300, calculation_type: 'fixed' },
-  { name: 'Common Area Maintenance', description: 'Common area cleaning and maintenance', default_amount: 200, calculation_type: 'fixed' },
-  { name: 'Security Service', description: 'Security guard services', default_amount: 400, calculation_type: 'fixed' },
-  { name: 'Water Charge', description: 'Water consumption charge', default_amount: 2, calculation_type: 'per_sqft' },
-  { name: 'Service Charge', description: 'General service charge', default_amount: 5, calculation_type: 'percentage_of_rent' }
-];
+    // Check and create utility types
+    const utilityTypes = [
+      { 
+        name: 'Monthly Rent', 
+        description: 'Monthly rental payment', 
+        default_amount: 50000, 
+        calculation_type: 'fixed',
+        is_rent: true
+      },
+      // ... other utility types
+    ];
 
     for (const utilType of utilityTypes) {
       await UtilityType.findOrCreate({
@@ -189,9 +185,9 @@ const utilityTypes = [
         defaults: utilType
       });
     }
-    console.log('✅ Default utility types created');
+    console.log('✅ Default utility types checked/created');
 
-    // Create default departments if they don't exist
+    // Check and create default departments
     const defaultDepartments = [
       { name: 'Management', description: 'Company management and administration' },
       { name: 'Sales', description: 'Property sales and marketing' },
@@ -206,10 +202,37 @@ const utilityTypes = [
         defaults: dept
       });
     }
-    console.log('✅ Default departments created');
+    console.log('✅ Default departments checked/created');
 
   } catch (error) {
-    console.error('❌ Database sync failed:', error);
+    console.error('❌ Database sync failed:', error.message);
+    
+    // If it's a key limit error, try a different approach
+    if (error.parent && error.parent.code === 'ER_TOO_MANY_KEYS') {
+      console.log('⚠️  Too many indexes. Trying manual table creation...');
+      await manualTableCreation();
+    }
+  }
+};
+
+// Add this function for manual table creation
+const manualTableCreation = async () => {
+  try {
+    // Create tables without auto-sync
+    const tables = [
+      'CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, first_name VARCHAR(100), last_name VARCHAR(100), email VARCHAR(255), phone VARCHAR(20), password VARCHAR(255), role VARCHAR(50) DEFAULT "user", created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)',
+      
+      'CREATE TABLE IF NOT EXISTS accounts (id INT AUTO_INCREMENT PRIMARY KEY, voucher_number VARCHAR(50) UNIQUE, voucher_type ENUM("credit", "debit", "journal"), date DATE, name VARCHAR(255), description TEXT, type ENUM("income", "expense", "transfer"), category VARCHAR(100), amount DECIMAL(12,2), payment_method ENUM("cash", "bank", "mobile_banking", "check"), reference_number VARCHAR(100), notes TEXT, amount_in_bangla VARCHAR(255), status ENUM("pending", "completed", "cancelled") DEFAULT "completed", created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)',
+      
+      'CREATE TABLE IF NOT EXISTS cash_balances (id INT AUTO_INCREMENT PRIMARY KEY, date DATE UNIQUE, opening_balance DECIMAL(12,2) DEFAULT 0, cash_in DECIMAL(12,2) DEFAULT 0, cash_out DECIMAL(12,2) DEFAULT 0, closing_balance DECIMAL(12,2) DEFAULT 0, bank_balance DECIMAL(12,2) DEFAULT 0, mobile_banking_balance DECIMAL(12,2) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)'
+    ];
+
+    for (const sql of tables) {
+      await sequelize.query(sql);
+    }
+    console.log('✅ Tables created manually');
+  } catch (error) {
+    console.error('❌ Manual table creation failed:', error.message);
   }
 };
 

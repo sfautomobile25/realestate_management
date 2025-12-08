@@ -3,6 +3,7 @@ const { Account, CashBalance } = require('../models');
 const { Op } = require('sequelize');
 const router = express.Router();
 const sequelize = require('../config/database');
+const { generateTransactionPDF } = require('../utils/pdfGenerator');
 
 // Helper function to generate voucher number
 const generateVoucherNumber = (type) => {
@@ -498,6 +499,134 @@ router.get('/monthly-summary', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching monthly summary:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Download Credit Transactions PDF
+router.get('/download/credit', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    const start = startDate ? new Date(startDate) : new Date();
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+    
+    const transactions = await Account.findAll({
+      where: {
+        type: 'income',
+        date: {
+          [Op.between]: [start, end]
+        }
+      },
+      order: [['date', 'ASC']]
+    });
+    
+    const pdfBuffer = await generateTransactionPDF(transactions, 'credit', start, end);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="credit-transactions-${Date.now()}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Download Debit Transactions PDF
+router.get('/download/debit', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    const start = startDate ? new Date(startDate) : new Date();
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+    
+    const transactions = await Account.findAll({
+      where: {
+        type: 'expense',
+        date: {
+          [Op.between]: [start, end]
+        }
+      },
+      order: [['date', 'ASC']]
+    });
+    
+    const pdfBuffer = await generateTransactionPDF(transactions, 'debit', start, end);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="debit-transactions-${Date.now()}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get yearly summary
+router.get('/yearly-summary/:year', async (req, res) => {
+  try {
+    const year = parseInt(req.params.year) || new Date().getFullYear();
+    
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+    
+    const transactions = await Account.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate, endDate]
+        }
+      },
+      order: [['date', 'ASC']]
+    });
+    
+    // Monthly breakdown
+    const monthlySummary = {};
+    for (let month = 0; month < 12; month++) {
+      monthlySummary[month] = {
+        income: 0,
+        expense: 0,
+        net: 0
+      };
+    }
+    
+    // Category breakdown
+    const incomeByCategory = {};
+    const expenseByCategory = {};
+    
+    transactions.forEach(transaction => {
+      const month = new Date(transaction.date).getMonth();
+      
+      if (transaction.type === 'income') {
+        monthlySummary[month].income += parseFloat(transaction.amount);
+        incomeByCategory[transaction.category] = 
+          (incomeByCategory[transaction.category] || 0) + parseFloat(transaction.amount);
+      } else {
+        monthlySummary[month].expense += parseFloat(transaction.amount);
+        expenseByCategory[transaction.category] = 
+          (expenseByCategory[transaction.category] || 0) + parseFloat(transaction.amount);
+      }
+      
+      monthlySummary[month].net = monthlySummary[month].income - monthlySummary[month].expense;
+    });
+    
+    // Total yearly
+    const yearlyTotal = transactions.reduce((acc, t) => {
+      return acc + (t.type === 'income' ? parseFloat(t.amount) : -parseFloat(t.amount));
+    }, 0);
+    
+    res.json({
+      year,
+      monthlySummary,
+      incomeByCategory,
+      expenseByCategory,
+      totalTransactions: transactions.length,
+      totalIncome: transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount), 0),
+      totalExpense: transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount), 0),
+      yearlyBalance: yearlyTotal
+    });
+  } catch (error) {
+    console.error('Error fetching yearly summary:', error);
     res.status(500).json({ message: error.message });
   }
 });
