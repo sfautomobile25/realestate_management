@@ -1,4 +1,21 @@
 const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
+
+// Use a font that supports Bengali characters
+const registerFonts = (doc) => {
+  try {
+    // Try to register Noto Sans Bengali if available
+    const fontPath = path.join(__dirname, '../fonts/NotoSansBengali-Regular.ttf');
+    if (fs.existsSync(fontPath)) {
+      doc.registerFont('NotoSansBengali', fontPath);
+      return 'NotoSansBengali';
+    }
+  } catch (error) {
+    console.log('Custom font not found, using default');
+  }
+  return 'Helvetica';
+};
 
 const generateTransactionPDF = async (transactions, type, startDate, endDate) => {
   return new Promise((resolve, reject) => {
@@ -6,23 +23,29 @@ const generateTransactionPDF = async (transactions, type, startDate, endDate) =>
       const doc = new PDFDocument({ 
         margin: 50,
         size: 'A4',
-        font: 'Helvetica' // Explicitly set font
+        autoFirstPage: false
       });
       
       const buffers = [];
-      
       doc.on('data', buffers.push.bind(buffers));
       doc.on('end', () => {
         const pdfData = Buffer.concat(buffers);
         resolve(pdfData);
       });
       
-      // Header with orange background
-      doc.fillColor('#FF5722')
-         .rect(0, 0, doc.page.width, 100)
-         .fill();
+      // Helper function to format numbers
+      const formatNumber = (num) => {
+        return parseFloat(num || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      };
       
-      // Company Name (using simple text)
+      // Add first page
+      doc.addPage();
+      
+      // Header with orange background
+      doc.rect(0, 0, doc.page.width, 100)
+         .fill('#FF5722');
+      
+      // Company Name
       doc.fillColor('white')
          .fontSize(20)
          .font('Helvetica-Bold')
@@ -33,6 +56,7 @@ const generateTransactionPDF = async (transactions, type, startDate, endDate) =>
       
       // Address
       doc.fontSize(10)
+         .font('Helvetica')
          .text('Ambika Sarak, Jhiltuli, Faridpur', 50, 60, {
            align: 'center',
            width: doc.page.width - 100
@@ -41,20 +65,24 @@ const generateTransactionPDF = async (transactions, type, startDate, endDate) =>
       // Report Title
       doc.fillColor('black')
          .fontSize(16)
+         .font('Helvetica-Bold')
          .text(`${type.toUpperCase()} TRANSACTIONS REPORT`, 50, 100, {
            align: 'center',
            width: doc.page.width - 100
          });
       
       // Date Range
+      const startStr = new Date(startDate).toLocaleDateString('en-GB');
+      const endStr = new Date(endDate).toLocaleDateString('en-GB');
       doc.fontSize(10)
-         .text(`From: ${new Date(startDate).toLocaleDateString('en-GB')} To: ${new Date(endDate).toLocaleDateString('en-GB')}`, 50, 130, {
+         .font('Helvetica')
+         .text(`Period: ${startStr} to ${endStr}`, 50, 130, {
            align: 'center',
            width: doc.page.width - 100
          });
       
       // Check if there are transactions
-      if (transactions.length === 0) {
+      if (!transactions || transactions.length === 0) {
         doc.fontSize(12)
            .text('No transactions found for the selected period.', 50, 180, {
              align: 'center',
@@ -66,140 +94,138 @@ const generateTransactionPDF = async (transactions, type, startDate, endDate) =>
       
       // Table Header
       const tableTop = 180;
-      const colWidth = {
-        sl: 30,
+      const colPositions = {
+        sl: 50,
         voucher: 80,
-        date: 70,
-        name: 100,
-        desc: 150,
-        amount: 80
+        date: 160,
+        name: 220,
+        desc: 320,
+        amount: 500
       };
       
-      doc.fontSize(10)
+      const colWidths = {
+        sl: 30,
+        voucher: 80,
+        date: 60,
+        name: 100,
+        desc: 180,
+        amount: 60
+      };
+      
+      // Draw header background
+      doc.rect(colPositions.sl, tableTop - 5, doc.page.width - 100, 20)
+         .fill('#f5f5f5');
+      
+      // Header text
+      doc.fillColor('black')
+         .fontSize(10)
          .font('Helvetica-Bold')
-         .text('SL', 50, tableTop)
-         .text('Voucher', 50 + colWidth.sl, tableTop)
-         .text('Date', 50 + colWidth.sl + colWidth.voucher, tableTop)
-         .text('Name', 50 + colWidth.sl + colWidth.voucher + colWidth.date, tableTop, { width: colWidth.name })
-         .text('Description', 50 + colWidth.sl + colWidth.voucher + colWidth.date + colWidth.name, tableTop, { width: colWidth.desc })
-         .text('Amount', doc.page.width - 50 - colWidth.amount, tableTop, { align: 'right' });
+         .text('SL', colPositions.sl, tableTop)
+         .text('Voucher', colPositions.voucher, tableTop)
+         .text('Date', colPositions.date, tableTop)
+         .text('Name', colPositions.name, tableTop)
+         .text('Description', colPositions.desc, tableTop)
+         .text('Amount', colPositions.amount, tableTop, { align: 'right' });
       
-      // Line under header
-      doc.moveTo(50, tableTop + 15)
-         .lineTo(doc.page.width - 50, tableTop + 15)
-         .lineWidth(0.5)
-         .stroke();
-      
-      // Table Rows
+      // Table data
       let y = tableTop + 25;
       let total = 0;
-      let pageNumber = 1;
+      
+      doc.fontSize(9)
+         .font('Helvetica');
       
       transactions.forEach((transaction, index) => {
-        // Check if we need a new page
+        // Check for page break
         if (y > doc.page.height - 100) {
           doc.addPage();
-          pageNumber++;
           y = 50;
           
-          // Add header on new page
-          doc.fontSize(10)
-             .font('Helvetica')
-             .text(`Page ${pageNumber} - ${type.toUpperCase()} Transactions`, 50, y, {
+          // Header on new page
+          doc.fillColor('black')
+             .fontSize(10)
+             .font('Helvetica-Bold')
+             .text(`${type.toUpperCase()} TRANSACTIONS - Continued`, 50, y, {
                align: 'center',
                width: doc.page.width - 100
              });
           
           y += 30;
           
-          // Table header on new page
-          doc.fontSize(9)
+          // Draw header background on new page
+          doc.rect(colPositions.sl, y - 5, doc.page.width - 100, 20)
+             .fill('#f5f5f5');
+          
+          // Header text on new page
+          doc.fillColor('black')
+             .fontSize(10)
              .font('Helvetica-Bold')
-             .text('SL', 50, y)
-             .text('Voucher', 50 + colWidth.sl, y)
-             .text('Date', 50 + colWidth.sl + colWidth.voucher, y)
-             .text('Name', 50 + colWidth.sl + colWidth.voucher + colWidth.date, y, { width: colWidth.name })
-             .text('Description', 50 + colWidth.sl + colWidth.voucher + colWidth.date + colWidth.name, y, { width: colWidth.desc })
-             .text('Amount', doc.page.width - 50 - colWidth.amount, y, { align: 'right' });
+             .text('SL', colPositions.sl, y)
+             .text('Voucher', colPositions.voucher, y)
+             .text('Date', colPositions.date, y)
+             .text('Name', colPositions.name, y)
+             .text('Description', colPositions.desc, y)
+             .text('Amount', colPositions.amount, y, { align: 'right' });
           
-          y += 20;
-          
-          // Line under header
-          doc.moveTo(50, y - 5)
-             .lineTo(doc.page.width - 50, y - 5)
-             .lineWidth(0.5)
-             .stroke();
-          
-          y += 10;
+          y += 25;
         }
         
         // Serial Number
-        doc.fontSize(9)
-           .font('Helvetica')
-           .text((index + 1).toString(), 50, y);
+        doc.text((index + 1).toString(), colPositions.sl, y);
         
         // Voucher Number
-        doc.text(transaction.voucher_number || '-', 50 + colWidth.sl, y);
+        doc.text(transaction.voucher_number || '-', colPositions.voucher, y);
         
         // Date
-        doc.text(new Date(transaction.date).toLocaleDateString('en-GB'), 50 + colWidth.sl + colWidth.voucher, y);
+        const date = new Date(transaction.date);
+        const dateStr = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+        doc.text(dateStr, colPositions.date, y);
         
         // Name
         const name = transaction.name || '-';
         const shortName = name.length > 15 ? name.substring(0, 15) + '...' : name;
-        doc.text(shortName, 50 + colWidth.sl + colWidth.voucher + colWidth.date, y, { 
-          width: colWidth.name,
-          ellipsis: true 
-        });
+        doc.text(shortName, colPositions.name, y, { width: colWidths.name });
         
         // Description
         const description = transaction.description || '-';
         const shortDesc = description.length > 25 ? description.substring(0, 25) + '...' : description;
-        doc.text(shortDesc, 50 + colWidth.sl + colWidth.voucher + colWidth.date + colWidth.name, y, { 
-          width: colWidth.desc,
-          ellipsis: true 
-        });
+        doc.text(shortDesc, colPositions.desc, y, { width: colWidths.desc });
         
-        // Amount - Fixed number formatting
+        // Amount - FIXED FORMATTING
         const amount = parseFloat(transaction.amount || 0);
-        const amountText = '৳ ' + amount.toFixed(2);
-        doc.text(amountText, doc.page.width - 50 - colWidth.amount, y, { 
-          align: 'right'
-        });
+        const amountText = `৳ ${formatNumber(amount)}`;
+        doc.text(amountText, colPositions.amount, y, { align: 'right' });
         
         total += amount;
         y += 15;
       });
       
-      // Total Line
-      doc.moveTo(50, y + 5)
+      // Total line
+      doc.moveTo(colPositions.sl, y + 5)
          .lineTo(doc.page.width - 50, y + 5)
-         .lineWidth(0.5)
+         .lineWidth(1)
          .stroke();
       
-      // Total Amount
       y += 10;
+      
+      // Total amount
       doc.fontSize(10)
          .font('Helvetica-Bold')
-         .text('TOTAL:', doc.page.width - 150, y)
-         .text('৳ ' + total.toFixed(2), doc.page.width - 50, y, { align: 'right' });
+         .text('TOTAL:', colPositions.desc, y)
+         .text(`৳ ${formatNumber(total)}`, colPositions.amount, y, { align: 'right' });
       
       // Footer
-      y = doc.page.height - 50;
+      const footerY = doc.page.height - 50;
       doc.fontSize(8)
          .fillColor('gray')
-         .text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 50, y, {
-           align: 'center',
-           width: doc.page.width - 100
-         });
+         .font('Helvetica')
+         .text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 
+               50, footerY, { align: 'center', width: doc.page.width - 100 });
       
-      doc.text(`Total Transactions: ${transactions.length} | Total Amount: ৳ ${total.toFixed(2)}`, 
-               50, y + 15, {
-                 align: 'center',
-                 width: doc.page.width - 100
-               });
+      doc.text(`Total Transactions: ${transactions.length} | Total Amount: ৳ ${formatNumber(total)}`, 
+               50, footerY + 15, { align: 'center', width: doc.page.width - 100 });
       
       doc.end();
+      
     } catch (error) {
       console.error('PDF Generation Error:', error);
       reject(error);

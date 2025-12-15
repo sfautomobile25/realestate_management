@@ -667,6 +667,7 @@ router.get('/download/yearly/:year/excel', async (req, res) => {
     const startDate = new Date(year, 0, 1);
     const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
     
+    // Get ALL transactions for the year
     const transactions = await Account.findAll({
       where: {
         date: {
@@ -676,7 +677,7 @@ router.get('/download/yearly/:year/excel', async (req, res) => {
       order: [['date', 'ASC']]
     });
     
-    // Monthly breakdown
+    // Calculate monthly breakdown
     const monthlySummary = {};
     for (let month = 0; month < 12; month++) {
       monthlySummary[month] = {
@@ -686,7 +687,7 @@ router.get('/download/yearly/:year/excel', async (req, res) => {
       };
     }
     
-    // Category breakdown
+    // Calculate category breakdown
     const incomeByCategory = {};
     const expenseByCategory = {};
     
@@ -720,8 +721,8 @@ router.get('/download/yearly/:year/excel', async (req, res) => {
       }, 0)
     };
     
-    // Generate Excel file
-    const excelBuffer = await generateYearlyExcel(yearlySummary, year);
+    // Generate Excel file WITH TRANSACTION DATA
+    const excelBuffer = await generateYearlyExcel(yearlySummary, transactions, year);
     
     // Set response headers
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

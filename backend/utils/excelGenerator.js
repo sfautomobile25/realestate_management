@@ -1,36 +1,32 @@
 const ExcelJS = require('exceljs');
 
-const generateYearlyExcel = async (yearlySummary, year) => {
+const generateYearlyExcel = async (yearlySummary, transactions, year) => {
   try {
     // Create a new workbook
     const workbook = new ExcelJS.Workbook();
     
-    // Add company info sheet
-    const infoSheet = workbook.addWorksheet('Company Info');
+    // ========== SHEET 1: SUMMARY ==========
+    const summarySheet = workbook.addWorksheet('Summary');
     
     // Company Header
-    infoSheet.mergeCells('A1:E1');
-    infoSheet.getCell('A1').value = 'SHAHFARID REAL ESTATE COMPANY';
-    infoSheet.getCell('A1').font = { bold: true, size: 16, color: { argb: 'FF5722' } };
-    infoSheet.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+    summarySheet.mergeCells('A1:F1');
+    const titleCell = summarySheet.getCell('A1');
+    titleCell.value = 'SHAHFARID REAL ESTATE COMPANY';
+    titleCell.font = { bold: true, size: 16, color: { argb: 'FF5722' } };
+    titleCell.alignment = { horizontal: 'center' };
     
-    infoSheet.mergeCells('A2:E2');
-    infoSheet.getCell('A2').value = 'Ambika Sarak, Jhiltuli, Faridpur';
-    infoSheet.getCell('A2').font = { size: 12 };
-    infoSheet.getCell('A2').alignment = { horizontal: 'center' };
+    summarySheet.mergeCells('A2:F2');
+    summarySheet.getCell('A2').value = 'Ambika Sarak, Jhiltuli, Faridpur';
+    summarySheet.getCell('A2').alignment = { horizontal: 'center' };
     
-    infoSheet.mergeCells('A3:E3');
-    infoSheet.getCell('A3').value = `Yearly Financial Report - ${year}`;
-    infoSheet.getCell('A3').font = { bold: true, size: 14 };
-    infoSheet.getCell('A3').alignment = { horizontal: 'center' };
-    
-    infoSheet.mergeCells('A4:E4');
-    infoSheet.getCell('A4').value = `Generated on: ${new Date().toLocaleDateString('en-GB')}`;
-    infoSheet.getCell('A4').alignment = { horizontal: 'center' };
+    summarySheet.mergeCells('A3:F3');
+    summarySheet.getCell('A3').value = `YEARLY FINANCIAL REPORT - ${year}`;
+    summarySheet.getCell('A3').font = { bold: true, size: 14 };
+    summarySheet.getCell('A3').alignment = { horizontal: 'center' };
     
     // Summary Statistics
-    infoSheet.getCell('A6').value = 'SUMMARY STATISTICS';
-    infoSheet.getCell('A6').font = { bold: true, size: 12 };
+    summarySheet.getCell('A5').value = 'SUMMARY STATISTICS';
+    summarySheet.getCell('A5').font = { bold: true, size: 12 };
     
     const summaryData = [
       ['Total Income', yearlySummary.totalIncome || 0],
@@ -39,46 +35,130 @@ const generateYearlyExcel = async (yearlySummary, year) => {
       ['Total Transactions', yearlySummary.totalTransactions || 0]
     ];
     
-    infoSheet.addRows(summaryData);
+    summarySheet.addRows(summaryData);
     
-    // Format summary cells
-    for (let i = 7; i <= 10; i++) {
-      infoSheet.getCell(`A${i}`).font = { bold: true };
-      infoSheet.getCell(`B${i}`).numFmt = '#,##0.00;[Red]-#,##0.00';
-      infoSheet.getCell(`B${i}`).alignment = { horizontal: 'right' };
+    // Format summary
+    for (let i = 6; i <= 9; i++) {
+      summarySheet.getCell(`A${i}`).font = { bold: true };
+      summarySheet.getCell(`B${i}`).numFmt = '#,##0.00';
+      summarySheet.getCell(`B${i}`).alignment = { horizontal: 'right' };
     }
     
-    // Set column widths
-    infoSheet.columns = [
-      { width: 25 },
-      { width: 20 }
+    // ========== SHEET 2: DETAILED TRANSACTIONS ==========
+    const detailSheet = workbook.addWorksheet('All Transactions');
+    
+    // Header
+    detailSheet.mergeCells('A1:I1');
+    detailSheet.getCell('A1').value = `DETAILED TRANSACTIONS - ${year}`;
+    detailSheet.getCell('A1').font = { bold: true, size: 14 };
+    detailSheet.getCell('A1').alignment = { horizontal: 'center' };
+    
+    // Column Headers
+    const headers = [
+      'SL', 'Date', 'Voucher No', 'Type', 'Category', 
+      'Name', 'Description', 'Payment Method', 'Amount'
     ];
     
-    // Add Monthly Breakdown Sheet
-    const monthlySheet = workbook.addWorksheet('Monthly Breakdown');
+    detailSheet.addRow(headers);
     
-    // Monthly Header
-    monthlySheet.mergeCells('A1:D1');
+    // Style headers
+    const headerRow = detailSheet.getRow(2);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF5722' }
+    };
+    headerRow.alignment = { horizontal: 'center' };
+    
+    // Add transaction data
+    let rowIndex = 3;
+    let totalIncome = 0;
+    let totalExpense = 0;
+    
+    transactions.forEach((transaction, index) => {
+      const row = detailSheet.addRow([
+        index + 1,
+        new Date(transaction.date).toLocaleDateString('en-GB'),
+        transaction.voucher_number || '-',
+        transaction.type === 'income' ? 'Credit' : 'Debit',
+        transaction.category || '-',
+        transaction.name || '-',
+        transaction.description || '-',
+        transaction.payment_method || '-',
+        parseFloat(transaction.amount || 0)
+      ]);
+      
+      // Format amount column
+      const amountCell = row.getCell(9);
+      amountCell.numFmt = '#,##0.00';
+      amountCell.alignment = { horizontal: 'right' };
+      
+      // Color code income/expense
+      if (transaction.type === 'income') {
+        amountCell.font = { color: { argb: '2E7D32' } }; // Green
+        totalIncome += parseFloat(transaction.amount || 0);
+      } else {
+        amountCell.font = { color: { argb: 'C62828' } }; // Red
+        totalExpense += parseFloat(transaction.amount || 0);
+      }
+      
+      rowIndex++;
+    });
+    
+    // Add totals row
+    detailSheet.addRow([]);
+    const totalRow = detailSheet.addRow([
+      '', '', '', '', '', '', 'TOTAL INCOME:', '', totalIncome
+    ]);
+    totalRow.getCell(9).numFmt = '#,##0.00';
+    totalRow.getCell(9).font = { bold: true, color: { argb: '2E7D32' } };
+    
+    const expenseRow = detailSheet.addRow([
+      '', '', '', '', '', '', 'TOTAL EXPENSE:', '', totalExpense
+    ]);
+    expenseRow.getCell(9).numFmt = '#,##0.00';
+    expenseRow.getCell(9).font = { bold: true, color: { argb: 'C62828' } };
+    
+    const netRow = detailSheet.addRow([
+      '', '', '', '', '', '', 'NET BALANCE:', '', totalIncome - totalExpense
+    ]);
+    netRow.getCell(9).numFmt = '#,##0.00';
+    netRow.getCell(9).font = { bold: true };
+    
+    // Set column widths
+    detailSheet.columns = [
+      { width: 8 },   // SL
+      { width: 12 },  // Date
+      { width: 15 },  // Voucher
+      { width: 10 },  // Type
+      { width: 20 },  // Category
+      { width: 25 },  // Name
+      { width: 30 },  // Description
+      { width: 15 },  // Payment Method
+      { width: 15 }   // Amount
+    ];
+    
+    // ========== SHEET 3: MONTHLY BREAKDOWN ==========
+    const monthlySheet = workbook.addWorksheet('Monthly Summary');
+    
+    // Header
+    monthlySheet.mergeCells('A1:E1');
     monthlySheet.getCell('A1').value = `MONTHLY BREAKDOWN - ${year}`;
     monthlySheet.getCell('A1').font = { bold: true, size: 14 };
     monthlySheet.getCell('A1').alignment = { horizontal: 'center' };
     
-    // Monthly Table Headers
-    monthlySheet.getCell('A3').value = 'Month';
-    monthlySheet.getCell('B3').value = 'Income';
-    monthlySheet.getCell('C3').value = 'Expense';
-    monthlySheet.getCell('D3').value = 'Net Balance';
+    // Table Headers
+    monthlySheet.addRow(['Month', 'Income', 'Expense', 'Net Balance', 'Transactions']);
     
-    // Style headers
-    ['A3', 'B3', 'C3', 'D3'].forEach(cell => {
-      monthlySheet.getCell(cell).font = { bold: true, color: { argb: 'FFFFFF' } };
-      monthlySheet.getCell(cell).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF5722' }
-      };
-      monthlySheet.getCell(cell).alignment = { horizontal: 'center' };
-    });
+    const headerRow2 = monthlySheet.getRow(2);
+    headerRow2.font = { bold: true, color: { argb: 'FFFFFF' } };
+    headerRow2.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '2196F3' }
+    };
+    headerRow2.alignment = { horizontal: 'center' };
     
     // Add monthly data
     const months = [
@@ -86,67 +166,75 @@ const generateYearlyExcel = async (yearlySummary, year) => {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
     
-    let row = 4;
+    let rowNum = 3;
     months.forEach((month, index) => {
-      const monthData = yearlySummary.monthlySummary?.[index] || { income: 0, expense: 0, net: 0 };
+      const monthData = yearlySummary.monthlySummary?.[index] || { 
+        income: 0, expense: 0, net: 0 
+      };
       
-      monthlySheet.getCell(`A${row}`).value = month;
-      monthlySheet.getCell(`B${row}`).value = monthData.income || 0;
-      monthlySheet.getCell(`C${row}`).value = monthData.expense || 0;
-      monthlySheet.getCell(`D${row}`).value = monthData.net || 0;
+      // Count transactions for this month
+      const monthTransactions = transactions.filter(t => 
+        new Date(t.date).getMonth() === index
+      );
+      
+      monthlySheet.addRow([
+        month,
+        monthData.income || 0,
+        monthData.expense || 0,
+        monthData.net || 0,
+        monthTransactions.length
+      ]);
       
       // Format numbers
       ['B', 'C', 'D'].forEach(col => {
-        monthlySheet.getCell(`${col}${row}`).numFmt = '#,##0.00;[Red]-#,##0.00';
-        monthlySheet.getCell(`${col}${row}`).alignment = { horizontal: 'right' };
+        monthlySheet.getCell(`${col}${rowNum}`).numFmt = '#,##0.00';
+        monthlySheet.getCell(`${col}${rowNum}`).alignment = { horizontal: 'right' };
       });
       
-      row++;
+      rowNum++;
     });
     
-    // Add totals row
-    monthlySheet.getCell(`A${row}`).value = 'TOTAL';
-    monthlySheet.getCell(`A${row}`).font = { bold: true };
-    monthlySheet.getCell(`B${row}`).value = yearlySummary.totalIncome || 0;
-    monthlySheet.getCell(`C${row}`).value = yearlySummary.totalExpense || 0;
-    monthlySheet.getCell(`D${row}`).value = yearlySummary.yearlyBalance || 0;
+    // Add totals
+    monthlySheet.addRow([
+      'TOTAL',
+      totalIncome,
+      totalExpense,
+      totalIncome - totalExpense,
+      transactions.length
+    ]);
     
     // Format total row
-    ['B', 'C', 'D'].forEach(col => {
-      monthlySheet.getCell(`${col}${row}`).numFmt = '#,##0.00;[Red]-#,##0.00';
-      monthlySheet.getCell(`${col}${row}`).font = { bold: true };
-      monthlySheet.getCell(`${col}${row}`).alignment = { horizontal: 'right' };
+    const totalRow2 = monthlySheet.getRow(rowNum);
+    totalRow2.font = { bold: true };
+    ['B', 'C', 'D', 'E'].forEach(col => {
+      totalRow2.getCell(col).numFmt = '#,##0.00';
+      totalRow2.getCell(col).alignment = { horizontal: 'right' };
     });
     
     // Set column widths
     monthlySheet.columns = [
-      { width: 20 },
+      { width: 15 },
+      { width: 15 },
       { width: 15 },
       { width: 15 },
       { width: 15 }
     ];
     
-    // Add Category Breakdown Sheet
-    const categorySheet = workbook.addWorksheet('Category Breakdown');
+    // ========== SHEET 4: CATEGORY ANALYSIS ==========
+    const categorySheet = workbook.addWorksheet('Category Analysis');
     
     // Income Categories
     categorySheet.mergeCells('A1:B1');
     categorySheet.getCell('A1').value = 'INCOME CATEGORIES';
     categorySheet.getCell('A1').font = { bold: true, size: 12 };
     
-    categorySheet.getCell('A2').value = 'Category';
-    categorySheet.getCell('B2').value = 'Amount';
+    categorySheet.addRow(['Category', 'Amount']);
     
-    // Style income headers
-    categorySheet.getCell('A2').font = { bold: true };
-    categorySheet.getCell('B2').font = { bold: true };
-    
-    let incomeRow = 3;
+    let catRow = 3;
     Object.entries(yearlySummary.incomeByCategory || {}).forEach(([category, amount]) => {
-      categorySheet.getCell(`A${incomeRow}`).value = category;
-      categorySheet.getCell(`B${incomeRow}`).value = amount;
-      categorySheet.getCell(`B${incomeRow}`).numFmt = '#,##0.00';
-      incomeRow++;
+      categorySheet.addRow([category, amount]);
+      categorySheet.getCell(`B${catRow}`).numFmt = '#,##0.00';
+      catRow++;
     });
     
     // Expense Categories
@@ -156,16 +244,12 @@ const generateYearlyExcel = async (yearlySummary, year) => {
     categorySheet.getCell('D2').value = 'Category';
     categorySheet.getCell('E2').value = 'Amount';
     
-    // Style expense headers
-    categorySheet.getCell('D2').font = { bold: true };
-    categorySheet.getCell('E2').font = { bold: true };
-    
-    let expenseRow = 3;
+    catRow = 3;
     Object.entries(yearlySummary.expenseByCategory || {}).forEach(([category, amount]) => {
-      categorySheet.getCell(`D${expenseRow}`).value = category;
-      categorySheet.getCell(`E${expenseRow}`).value = amount;
-      categorySheet.getCell(`E${expenseRow}`).numFmt = '#,##0.00';
-      expenseRow++;
+      categorySheet.getCell(`D${catRow}`).value = category;
+      categorySheet.getCell(`E${catRow}`).value = amount;
+      categorySheet.getCell(`E${catRow}`).numFmt = '#,##0.00';
+      catRow++;
     });
     
     // Set column widths
