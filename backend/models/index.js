@@ -15,6 +15,8 @@ const Attendance = require('./Attendance');
 const SalaryPayment = require('./SalaryPayment');
 const Account = require('./Account');
 const CashBalance = require('./CashBalance');
+const Notification = require('./Notification');
+
 
 // Define associations
 
@@ -256,4 +258,5 @@ module.exports = {
   SalaryPayment,
   Account,
   CashBalance,
+  Notification,
 };

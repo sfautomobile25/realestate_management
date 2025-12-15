@@ -9,6 +9,7 @@ import departmentReducer from './slices/departmentSlice';
 import employeeReducer from './slices/employeeSlice';
 import hrReducer from './slices/hrSlice'; // Add this line
 import accountReducer from './slices/accountSlice'; // ADD THIS LINE
+import notificationReducer from './slices/notificationSlice';
 
 const store = configureStore({
   reducer: {
@@ -22,6 +23,7 @@ const store = configureStore({
     employees: employeeReducer,
     hr: hrReducer,
     accounts: accountReducer, // ADD THIS LINE
+     notifications: notificationReducer,
   },
 });
 

@@ -32,6 +32,8 @@ app.use('/api/rentals', require('./routes/rentals'));
 app.use('/api/payments', require('./routes/payments')); 
 app.use('/api/hr', require('./routes/hr'));
 app.use('/api/accounts', require('./routes/accounts')); // ADD THIS LINE
+app.use('/api/notifications', require('./routes/notifications'));
+
 
 // Health check
 app.get('/api/health', (req, res) => {

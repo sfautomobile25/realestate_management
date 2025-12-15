@@ -186,17 +186,28 @@ export const accountAPI = {
     params,
     responseType: 'blob'
   }),
-  
   downloadDebitPDF: (params = {}) => api.get('/accounts/download/debit', { 
     params,
     responseType: 'blob'
   }),
-  
   getYearlySummary: (year) => api.get(`/accounts/yearly-summary/${year}`),
   downloadYearlyExcel: (year) => api.get(`/accounts/download/yearly/${year}/excel`, {
     responseType: 'blob'
   }),
+   downloadYearlyPDF: (year) => api.get(`/accounts/download/yearly/${year}/pdf`, {
+    responseType: 'blob'
+  }),
 
+};
+
+export const notificationAPI = {
+  getAll: (params = {}) => api.get('/notifications', { params }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id) => api.put(`/notifications/${id}/read`),
+  approvePayment: (id) => api.put(`/notifications/${id}/approve`),
+  rejectPayment: (id) => api.put(`/notifications/${id}/reject`),
+  markAllAsRead: () => api.put('/notifications/mark-all-read'),
+  createPaymentApproval: (data) => api.post('/notifications/payment-approval', data)
 };
 
 

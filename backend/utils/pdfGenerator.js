@@ -233,6 +233,235 @@ const generateTransactionPDF = async (transactions, type, startDate, endDate) =>
   });
 };
 
+const generateYearlyPDF = async (yearlySummary, year) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ 
+        margin: 50,
+        size: 'A4',
+        font: 'Helvetica'
+      });
+      
+      const buffers = [];
+      
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => {
+        const pdfData = Buffer.concat(buffers);
+        resolve(pdfData);
+      });
+      
+      // Header with orange background
+      doc.fillColor('#FF5722')
+         .rect(0, 0, doc.page.width, 100)
+         .fill();
+      
+      // Company Name
+      doc.fillColor('white')
+         .fontSize(20)
+         .font('Helvetica-Bold')
+         .text('SHAHFARID REAL ESTATE COMPANY', 50, 30, {
+           align: 'center',
+           width: doc.page.width - 100
+         });
+      
+      // Address
+      doc.fontSize(10)
+         .text('Ambika Sarak, Jhiltuli, Faridpur', 50, 60, {
+           align: 'center',
+           width: doc.page.width - 100
+         });
+      
+      // Report Title
+      doc.fillColor('black')
+         .fontSize(16)
+         .text(`YEARLY FINANCIAL REPORT - ${year}`, 50, 100, {
+           align: 'center',
+           width: doc.page.width - 100
+         });
+      
+      // Generated Date
+      doc.fontSize(10)
+         .text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 50, 130, {
+           align: 'center',
+           width: doc.page.width - 100
+         });
+      
+      let y = 160;
+      
+      // Summary Statistics
+      doc.fontSize(12)
+         .font('Helvetica-Bold')
+         .text('SUMMARY STATISTICS', 50, y);
+      
+      y += 20;
+      
+      const summaryData = [
+        { label: 'Total Income', value: yearlySummary.totalIncome || 0, color: '#4caf50' },
+        { label: 'Total Expense', value: yearlySummary.totalExpense || 0, color: '#f44336' },
+        { label: 'Yearly Balance', value: yearlySummary.yearlyBalance || 0, color: '#2196f3' },
+        { label: 'Total Transactions', value: yearlySummary.totalTransactions || 0, color: '#ff9800' }
+      ];
+      
+      summaryData.forEach(item => {
+        doc.fontSize(10)
+           .font('Helvetica')
+           .fillColor('black')
+           .text(item.label + ':', 70, y);
+        
+        doc.font('Helvetica-Bold')
+           .fillColor(item.color)
+           .text(item.value.toLocaleString('en-IN'), doc.page.width - 150, y, { align: 'right' });
+        
+        y += 20;
+      });
+      
+      y += 10;
+      
+      // Monthly Breakdown
+      doc.addPage();
+      y = 50;
+      
+      doc.fontSize(14)
+         .font('Helvetica-Bold')
+         .fillColor('black')
+         .text(`MONTHLY BREAKDOWN - ${year}`, 50, y, {
+           align: 'center',
+           width: doc.page.width - 100
+         });
+      
+      y += 30;
+      
+      // Table Header
+      doc.fontSize(10)
+         .font('Helvetica-Bold')
+         .fillColor('white')
+         .rect(50, y, doc.page.width - 100, 20)
+         .fill('#FF5722');
+      
+      doc.text('Month', 60, y + 5);
+      doc.text('Income', 200, y + 5);
+      doc.text('Expense', 300, y + 5);
+      doc.text('Net Balance', 400, y + 5);
+      
+      y += 25;
+      
+      // Monthly Data
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      
+      months.forEach((month, index) => {
+        const monthData = yearlySummary.monthlySummary?.[index] || { income: 0, expense: 0, net: 0 };
+        
+        // Check for new page
+        if (y > doc.page.height - 100) {
+          doc.addPage();
+          y = 50;
+        }
+        
+        // Month name
+        doc.fontSize(9)
+           .font('Helvetica')
+           .fillColor('black')
+           .text(month, 60, y);
+        
+        // Income
+        doc.fillColor('#4caf50')
+           .text('৳' + (monthData.income || 0).toFixed(2), 200, y);
+        
+        // Expense
+        doc.fillColor('#f44336')
+           .text('৳' + (monthData.expense || 0).toFixed(2), 300, y);
+        
+        // Net Balance
+        const netColor = monthData.net >= 0 ? '#4caf50' : '#f44336';
+        doc.fillColor(netColor)
+           .font('Helvetica-Bold')
+           .text('৳' + (monthData.net || 0).toFixed(2), 400, y);
+        
+        y += 20;
+      });
+      
+      // Category Breakdown
+      doc.addPage();
+      y = 50;
+      
+      doc.fontSize(14)
+         .font('Helvetica-Bold')
+         .fillColor('black')
+         .text('CATEGORY BREAKDOWN', 50, y, {
+           align: 'center',
+           width: doc.page.width - 100
+         });
+      
+      y += 30;
+      
+      // Income Categories
+      doc.fontSize(12)
+         .text('INCOME CATEGORIES', 50, y);
+      
+      y += 20;
+      
+      Object.entries(yearlySummary.incomeByCategory || {}).forEach(([category, amount]) => {
+        doc.fontSize(10)
+           .font('Helvetica')
+           .fillColor('black')
+           .text(category, 70, y);
+        
+        doc.fillColor('#4caf50')
+           .text('৳' + amount.toFixed(2), doc.page.width - 150, y, { align: 'right' });
+        
+        y += 15;
+      });
+      
+      y += 20;
+      
+      // Expense Categories
+      doc.fontSize(12)
+         .text('EXPENSE CATEGORIES', 50, y);
+      
+      y += 20;
+      
+      Object.entries(yearlySummary.expenseByCategory || {}).forEach(([category, amount]) => {
+        doc.fontSize(10)
+           .font('Helvetica')
+           .fillColor('black')
+           .text(category, 70, y);
+        
+        doc.fillColor('#f44336')
+           .text('৳' + amount.toFixed(2), doc.page.width - 150, y, { align: 'right' });
+        
+        y += 15;
+      });
+      
+      // Footer
+      const footerY = doc.page.height - 50;
+      
+      doc.fontSize(8)
+         .fillColor('gray')
+         .text('Generated by SHAHFARID REAL ESTATE COMPANY - Accounts Management System', 
+               50, footerY, {
+                 align: 'center',
+                 width: doc.page.width - 100
+               });
+      
+      doc.text('This report is confidential and for internal use only', 
+               50, footerY + 15, {
+                 align: 'center',
+                 width: doc.page.width - 100
+               });
+      
+      doc.end();
+    } catch (error) {
+      console.error('Yearly PDF Generation Error:', error);
+      reject(error);
+    }
+  });
+};
+
+// Update exports
 module.exports = { 
-  generateTransactionPDF
+  generateTransactionPDF,
+  generateYearlyPDF
 };

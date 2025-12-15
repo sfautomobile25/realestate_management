@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import NotificationBell from './NotificationBell';
 import {
   Box,
   Drawer,
@@ -122,6 +123,7 @@ const Layout = ({ children }) => {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             Real Estate Management System
           </Typography>
+            <NotificationBell />
           <div>
             <IconButton
               size="large"
