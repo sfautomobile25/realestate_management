@@ -1735,11 +1735,12 @@ const generateCSVFallback = () => {
                     <Typography variant="h6">Cash in Hand</Typography>
                   </Box>
                   <Typography variant="h4" color="primary.main" fontWeight="bold">
-                    ৳{(validatedCashInHand.toLocaleString('en-US')*1000000).toFixed(2)}
-
-                    {
-                      console.log("COMING FROM DT: " + validatedCashInHand)
-                    }
+                    {((todayIncome.toFixed(2)) - todayExpense.toFixed(2)).toLocaleString('en-US',
+                      {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2 
+                      }
+                    )}
                   </Typography>
                   <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
                     End of day balance
