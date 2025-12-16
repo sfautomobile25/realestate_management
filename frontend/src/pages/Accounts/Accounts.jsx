@@ -622,39 +622,43 @@ useEffect(() => {
 
 // Monthly Summary Component - COMPLETELY REORGANIZED
 const MonthlySummaryTab = () => {
+  
+  const [carryForward, setCarryForward] = useState(false);
   const isLoading = loading && activeTab === 2;
   const [isDownloadingExcel, setIsDownloadingExcel] = useState(false);
-
   // Helper functions to prepare data
-  const prepareIncomeData = () => {
-    const items = [];
-    let index = 1;
-    
-    if (!monthlySummary) return { items, total: 0 };
-    
-    // Opening Balance
-    if (monthlySummary.openingBalance) {
+const prepareIncomeData = () => {
+  const items = [];
+  let index = 1;
+  
+  if (!monthlySummary) return { items, total: 0, openingBalance: 0 };
+  
+  // IMPORTANT: Opening balance should come from previous month's closing balance
+  const openingBalance = monthlySummary.openingBalance || 0;
+  
+  // Add opening balance as first item
+  if (openingBalance > 0) {
+    items.push({
+      no: index++,
+      description: 'আগের মাসের উদ্বৃত্ত',
+      amount: openingBalance
+    });
+  }
+  
+  // Add income by category
+  if (monthlySummary.incomeByCategory) {
+    Object.entries(monthlySummary.incomeByCategory).forEach(([category, amount]) => {
       items.push({
         no: index++,
-        description: 'Opening Balance',
-        amount: monthlySummary.openingBalance
+        description: category,
+        amount: amount
       });
-    }
-    
-    // Add income by category
-    if (monthlySummary.incomeByCategory) {
-      Object.entries(monthlySummary.incomeByCategory).forEach(([category, amount]) => {
-        items.push({
-          no: index++,
-          description: category,
-          amount: amount
-        });
-      });
-    }
-    
-    const total = items.reduce((sum, item) => sum + item.amount, 0);
-    return { items, total };
-  };
+    });
+  }
+  
+  const total = items.reduce((sum, item) => sum + item.amount, 0);
+  return { items, total, openingBalance };
+};
 
   const prepareExpenseData = () => {
     const items = [];
@@ -677,15 +681,37 @@ const MonthlySummaryTab = () => {
     return { items, total };
   };
 
-  // Get data
-  const { items: incomeItems, total: incomeTotal } = prepareIncomeData();
-  const { items: expenseItems, total: expenseTotal } = prepareExpenseData();
-  
+// Then calculate closing balance properly:
+const { items: incomeItems, total: incomeTotal, openingBalance } = prepareIncomeData();
+const { items: expenseItems, total: expenseTotal } = prepareExpenseData();
+
   // Calculate derived values
   const totalIncome = monthlySummary?.totalIncome || incomeTotal || 0;
   const totalExpense = monthlySummary?.totalExpense || expenseTotal || 0;
   const netBalance = totalIncome - totalExpense;
   const maxRows = Math.max(incomeItems.length, expenseItems.length);
+  const closingBalance = openingBalance + totalIncome - totalExpense;
+  const netChange = totalIncome - totalExpense;
+
+    // Function to handle carry forward
+const handleCarryForward = () => {
+  // This would typically save to backend
+  localStorage.setItem(
+    `openingBalance_${selectedMonthYear}_${selectedMonth + 1}`,
+    closingBalance.toString()
+  );
+  setCarryForward(true);
+  setSnackbar({
+    open: true,
+    message: `৳${closingBalance.toLocaleString()} পরবর্তী মাসের উদ্বৃত্ত হিসাবে সংরক্ষিত হয়েছে`,
+    severity: 'success'
+  });
+};
+
+// In your Excel generation, add a note:
+const carryForwardNote = `পরবর্তী মাসের উদ্বৃত্ত হিসাবে সংরক্ষণযোগ্য: ৳${closingBalance.toLocaleString()}`;
+
+
 
 const handleDownloadMonthlyExcel = async () => {
   try {
@@ -1014,8 +1040,11 @@ const handleDownloadMonthlyExcel = async () => {
     const netBalanceRowNumber = totalsRow.number + 2;
     worksheet.mergeCells(`A${netBalanceRowNumber}:F${netBalanceRowNumber}`);
     
-    const netBalanceCell = worksheet.getCell(`A${netBalanceRowNumber}`);
-    netBalanceCell.value = `মোট ব্যালেন্স: ৳${totalIncome.toLocaleString()} - ৳${totalExpense.toLocaleString()} = ৳${netBalance.toLocaleString()} টাকা`;
+// In the Excel generation code, update the net balance section:
+const netBalanceCell = worksheet.getCell(`A${netBalanceRowNumber}`);
+netBalanceCell.value = `মাসিক নিট পরিবর্তন: ৳${netChange.toLocaleString()}\n` +
+                      `মাস শেষ উদ্বৃত্ত: ৳${closingBalance.toLocaleString()}\n` +
+                      `(আগের মাসের উদ্বৃত্ত: ৳${openingBalance.toLocaleString()} + মাসিক আয়: ৳${totalIncome.toLocaleString()} - মাসিক ব্যয়: ৳${totalExpense.toLocaleString()} = ৳${closingBalance.toLocaleString()})`;
     netBalanceCell.font = {
       name: bengaliFont,
       bold: true,
