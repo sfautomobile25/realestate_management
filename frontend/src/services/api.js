@@ -175,13 +175,23 @@ export const utilityAPI = {
   getRentalBills: (rentalId) => api.get(`/utilities/bills/${rentalId}`)
 };
 
+export const notificationAPI = {
+  getAll: (params = {}) => api.get('/notifications', { params }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id) => api.put(`/notifications/${id}/read`),
+  approvePayment: (id) => api.put(`/notifications/${id}/approve`),
+  rejectPayment: (id) => api.put(`/notifications/${id}/reject`),
+  markAllAsRead: () => api.put('/notifications/mark-all-read'),
+  createPaymentApproval: (data) => api.post('/notifications/payment-approval', data)
+};
+
 export const accountAPI = {
   getBalance: (params = {}) => api.get('/accounts/balance', { params }),
   createTransaction: (transactionData) => api.post('/accounts', transactionData),
   setOpeningBalance: (balanceData) => api.post('/accounts/opening-balance', balanceData),
   getVoucher: (voucherNumber) => api.get(`/accounts/voucher/${voucherNumber}`),
   
-  // MONTHLY SUMMARY - CORRECTED
+  // MONTHLY SUMMARY
   getMonthlySummary: (params = {}) => api.get('/accounts/monthly-summary', { params }),
   
   getAllTransactions: (params = {}) => api.get('/accounts', { params }),
@@ -206,22 +216,69 @@ export const accountAPI = {
     responseType: 'blob'
   }),
   
-  // MONTHLY EXCEL - CORRECTED
-  downloadMonthlyExcel: (params) => api.get('/accounts/download/monthly-excel', { 
-    params,
-    responseType: 'blob'
-  }),
+  // FIXED: Use the correct endpoint or create a client-side Excel generation
+  downloadMonthlyExcel: (params) => {
+    // Option 1: Try your existing endpoint pattern
+    return api.get('/accounts/download/yearly-excel', { 
+      params: { ...params, reportType: 'monthly' },
+      responseType: 'blob'
+    });
+  },
+  
+  // Alternative: Client-side Excel generation function
+  generateMonthlyExcel: (monthlyData) => {
+    // This would generate Excel on the client side
+    return generateExcelClientSide(monthlyData);
+  }
 };
 
-export const notificationAPI = {
-  getAll: (params = {}) => api.get('/notifications', { params }),
-  getUnreadCount: () => api.get('/notifications/unread-count'),
-  markAsRead: (id) => api.put(`/notifications/${id}/read`),
-  approvePayment: (id) => api.put(`/notifications/${id}/approve`),
-  rejectPayment: (id) => api.put(`/notifications/${id}/reject`),
-  markAllAsRead: () => api.put('/notifications/mark-all-read'),
-  createPaymentApproval: (data) => api.post('/notifications/payment-approval', data)
+// Client-side Excel generation function (as fallback)
+const generateExcelClientSide = (monthlyData) => {
+  return new Promise((resolve) => {
+    // Import ExcelJS dynamically
+    import('exceljs').then((ExcelJS) => {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Monthly Summary');
+      
+      // Add headers
+      worksheet.addRow(['No.', 'Monthly Income', 'BDT', 'No.', 'Monthly Expense', 'BDT']);
+      
+      // Add data rows
+      const maxRows = Math.max(
+        monthlyData.incomeItems.length,
+        monthlyData.expenseItems.length
+      );
+      
+      for (let i = 0; i < maxRows; i++) {
+        const incomeItem = monthlyData.incomeItems[i];
+        const expenseItem = monthlyData.expenseItems[i];
+        
+        worksheet.addRow([
+          incomeItem ? incomeItem.no : '',
+          incomeItem ? incomeItem.description : '',
+          incomeItem ? incomeItem.amount : '',
+          expenseItem ? expenseItem.no : '',
+          expenseItem ? expenseItem.description : '',
+          expenseItem ? expenseItem.amount : ''
+        ]);
+      }
+      
+      // Add totals
+      worksheet.addRow(['', 'TOTAL INCOME:', monthlyData.totalIncome, '', 'TOTAL EXPENSE:', monthlyData.totalExpense]);
+      
+      // Add net balance
+      worksheet.addRow(['', '', '', '', 'NET BALANCE:', monthlyData.netBalance]);
+      worksheet.addRow(['', '', '', '', 'Formula:', `=${monthlyData.totalIncome} - ${monthlyData.totalExpense} = ${monthlyData.netBalance} BDT`]);
+      
+      // Generate blob
+      workbook.xlsx.writeBuffer().then((buffer) => {
+        resolve({
+          data: buffer,
+          config: { responseType: 'blob' }
+        });
+      });
+    });
+  });
 };
-
 
 export default api;

@@ -87,6 +87,7 @@ import {
 } from '../../store/slices/accountSlice';
 import Layout from '../../components/common/Layout';
 import { accountAPI } from '../../services/api';
+import * as ExcelJS from 'exceljs';
 
 const Accounts = () => {
   const dispatch = useDispatch();
@@ -686,45 +687,309 @@ const MonthlySummaryTab = () => {
   const netBalance = totalIncome - totalExpense;
   const maxRows = Math.max(incomeItems.length, expenseItems.length);
 
-  const handleDownloadMonthlyExcel = async () => {
-    try {
-      setIsDownloadingExcel(true);
+const handleDownloadMonthlyExcel = async () => {
+  try {
+    setIsDownloadingExcel(true);
+    
+    // Create a new workbook
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'SHAHFARID REAL ESTATE COMPANY';
+    workbook.created = new Date();
+    
+    // Add a worksheet
+    const worksheet = workbook.addWorksheet(`Monthly Summary ${months[selectedMonth]} ${selectedMonthYear}`);
+    
+    // Company Header
+    worksheet.mergeCells('A1:F1');
+    worksheet.getCell('A1').value = 'SHAHFARID REAL ESTATE COMPANY';
+    worksheet.getCell('A1').font = { bold: true, size: 16 };
+    worksheet.getCell('A1').alignment = { horizontal: 'center' };
+    
+    worksheet.mergeCells('A2:F2');
+    worksheet.getCell('A2').value = 'Ambika Sarak, Jhiltuli, Faridpur';
+    worksheet.getCell('A2').alignment = { horizontal: 'center' };
+    
+    worksheet.mergeCells('A3:F3');
+    worksheet.getCell('A3').value = `Monthly Financial Statement - ${months[selectedMonth]} ${selectedMonthYear}`;
+    worksheet.getCell('A3').font = { bold: true };
+    worksheet.getCell('A3').alignment = { horizontal: 'center' };
+    
+    // Add empty row
+    worksheet.addRow([]);
+    
+    // Table headers - INCOME SIDE
+    worksheet.mergeCells('A5:C5');
+    worksheet.getCell('A5').value = 'MONTHLY INCOME';
+    worksheet.getCell('A5').font = { bold: true, color: { argb: 'FF4CAF50' } };
+    worksheet.getCell('A5').fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE8F5E9' }
+    };
+    worksheet.getCell('A5').alignment = { horizontal: 'center' };
+    worksheet.getCell('A5').border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' }
+    };
+    
+    // Table headers - EXPENSE SIDE
+    worksheet.mergeCells('D5:F5');
+    worksheet.getCell('D5').value = 'MONTHLY EXPENSE';
+    worksheet.getCell('D5').font = { bold: true, color: { argb: 'FFF44336' } };
+    worksheet.getCell('D5').fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFFFEBEE' }
+    };
+    worksheet.getCell('D5').alignment = { horizontal: 'center' };
+    worksheet.getCell('D5').border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' }
+    };
+    
+    // Column headers
+    const headerRow = worksheet.addRow([
+      'No.', 'Description', 'Amount (BDT)', 
+      'No.', 'Description', 'Amount (BDT)'
+    ]);
+    
+    headerRow.font = { bold: true };
+    headerRow.eachCell((cell) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF5F5F5' }
+      };
+    });
+    
+    // Add data rows
+    const maxRows = Math.max(incomeItems.length, expenseItems.length);
+    
+    for (let i = 0; i < maxRows; i++) {
+      const incomeItem = incomeItems[i];
+      const expenseItem = expenseItems[i];
       
-      const response = await accountAPI.downloadMonthlyExcel({
-        year: selectedMonthYear,
-        month: selectedMonth + 1
-      }, {
-        responseType: 'blob'
+      const row = worksheet.addRow([
+        incomeItem ? incomeItem.no + '.' : '',
+        incomeItem ? incomeItem.description : '',
+        incomeItem ? incomeItem.amount : '',
+        expenseItem ? expenseItem.no + '.' : '',
+        expenseItem ? expenseItem.description : '',
+        expenseItem ? expenseItem.amount : ''
+      ]);
+      
+      // Style the row
+      row.eachCell((cell, colNumber) => {
+        cell.border = {
+          left: { style: 'thin' },
+          right: { style: 'thin' },
+          bottom: { style: 'thin' }
+        };
+        
+        // Color coding
+        if (colNumber <= 3) {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF9FBE7' }
+          };
+          if (colNumber === 3 && incomeItem) {
+            cell.numFmt = '#,##0;[Red]-#,##0';
+            cell.font = { color: { argb: 'FF4CAF50' }, bold: true };
+          }
+        } else {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFEBEE' }
+          };
+          if (colNumber === 6 && expenseItem) {
+            cell.numFmt = '#,##0;[Red]-#,##0';
+            cell.font = { color: { argb: 'FFF44336' }, bold: true };
+          }
+        }
       });
-      
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `monthly-summary-${months[selectedMonth]}-${selectedMonthYear}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      
+    }
+    
+    // Add separator row
+    const separatorRow = worksheet.addRow([]);
+    separatorRow.height = 5;
+    
+    // Add totals row
+    const totalsRow = worksheet.addRow([
+      'TOTAL INCOME:', '', totalIncome,
+      'TOTAL EXPENSE:', '', totalExpense
+    ]);
+    
+    totalsRow.font = { bold: true };
+    totalsRow.getCell(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE8F5E9' }
+    };
+    totalsRow.getCell(3).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE8F5E9' }
+    };
+    totalsRow.getCell(3).numFmt = '#,##0;[Red]-#,##0';
+    totalsRow.getCell(3).font = { color: { argb: 'FF4CAF50' }, bold: true };
+    
+    totalsRow.getCell(4).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFFFEBEE' }
+    };
+    totalsRow.getCell(6).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFFFEBEE' }
+    };
+    totalsRow.getCell(6).numFmt = '#,##0;[Red]-#,##0';
+    totalsRow.getCell(6).font = { color: { argb: 'FFF44336' }, bold: true };
+    
+    // Add net balance row
+    const netBalanceRow = worksheet.addRow([]);
+    worksheet.mergeCells('A' + netBalanceRow.number + ':F' + netBalanceRow.number);
+    worksheet.getCell('A' + netBalanceRow.number).value = `TOTAL BALANCE: ৳${totalIncome.toLocaleString()} - ৳${totalExpense.toLocaleString()} = ৳${netBalance.toLocaleString()} BDT`;
+    worksheet.getCell('A' + netBalanceRow.number).font = { 
+      bold: true, 
+      size: 14,
+      color: { argb: netBalance >= 0 ? 'FF4CAF50' : 'FFF44336' }
+    };
+    worksheet.getCell('A' + netBalanceRow.number).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE3F2FD' }
+    };
+    worksheet.getCell('A' + netBalanceRow.number).alignment = { horizontal: 'center' };
+    
+    // Add footer
+    const footerRow = worksheet.addRow([]);
+    worksheet.mergeCells('A' + footerRow.number + ':F' + footerRow.number);
+    worksheet.getCell('A' + footerRow.number).value = `Statement Period: 1st ${months[selectedMonth]} to 31st ${months[selectedMonth]} ${selectedMonthYear}`;
+    worksheet.getCell('A' + footerRow.number).font = { italic: true };
+    worksheet.getCell('A' + footerRow.number).alignment = { horizontal: 'center' };
+    
+    // Auto-fit columns
+    worksheet.columns = [
+      { width: 8 },  // A
+      { width: 30 }, // B
+      { width: 15 }, // C
+      { width: 8 },  // D
+      { width: 30 }, // E
+      { width: 15 }  // F
+    ];
+    
+    // Generate Excel file
+    const buffer = await workbook.xlsx.writeBuffer();
+    
+    // Create download link
+    const blob = new Blob([buffer], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Monthly_Summary_${months[selectedMonth]}_${selectedMonthYear}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    
+    setSnackbar({ 
+      open: true, 
+      message: `Monthly summary exported to Excel successfully`, 
+      severity: 'success' 
+    });
+    
+  } catch (error) {
+    console.error('Excel export error:', error);
+    
+    // Fallback to CSV if ExcelJS fails
+    if (error.message.includes('exceljs')) {
       setSnackbar({ 
         open: true, 
-        message: `Monthly summary for ${months[selectedMonth]} ${selectedMonthYear} exported to Excel successfully`, 
-        severity: 'success' 
-      });
-      
-    } catch (error) {
-      console.error('Excel export error:', error);
-      setSnackbar({ 
-        open: true, 
-        message: `Failed to export Excel: ${error.response?.data?.message || error.message}`, 
+        message: 'ExcelJS not installed. Please install it using: npm install exceljs', 
         severity: 'error' 
       });
-    } finally {
-      setIsDownloadingExcel(false);
+    } else {
+      setSnackbar({ 
+        open: true, 
+        message: `Failed to export Excel: ${error.message}`, 
+        severity: 'error' 
+      });
     }
-  };
+  } finally {
+    setIsDownloadingExcel(false);
+  }
+};
+
+// CSV fallback function
+const generateCSVFallback = () => {
+  try {
+    let csvContent = "No.,Monthly Income,BDT,No.,Monthly Expense,BDT\n";
+    
+    // Add data rows
+    const maxRows = Math.max(incomeItems.length, expenseItems.length);
+    for (let i = 0; i < maxRows; i++) {
+      const incomeItem = incomeItems[i];
+      const expenseItem = expenseItems[i];
+      
+      const row = [
+        incomeItem ? incomeItem.no : '',
+        incomeItem ? `"${incomeItem.description}"` : '',
+        incomeItem ? incomeItem.amount : '',
+        expenseItem ? expenseItem.no : '',
+        expenseItem ? `"${expenseItem.description}"` : '',
+        expenseItem ? expenseItem.amount : ''
+      ].join(',');
+      
+      csvContent += row + '\n';
+    }
+    
+    // Add totals
+    csvContent += `,TOTAL INCOME:,${totalIncome},,TOTAL EXPENSE:,${totalExpense}\n`;
+    csvContent += `,,,,"NET BALANCE:",${netBalance}\n`;
+    csvContent += `,,,,"Formula:","=${totalIncome} - ${totalExpense} = ${netBalance} BDT"\n`;
+    
+    // Create and download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `monthly-summary-${months[selectedMonth]}-${selectedMonthYear}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    
+    setSnackbar({ 
+      open: true, 
+      message: 'Monthly summary exported as CSV (Excel export not available)', 
+      severity: 'info' 
+    });
+    
+  } catch (csvError) {
+    console.error('CSV generation failed:', csvError);
+    setSnackbar({ 
+      open: true, 
+      message: 'Export failed. Please try again or contact support.', 
+      severity: 'error' 
+    });
+  }
+};
 
   // Now render the component
   return (
