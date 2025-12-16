@@ -33,9 +33,8 @@ import {
   Stack,
   IconButton,
   Tooltip,
-  CircularProgress  
+  CircularProgress
 } from '@mui/material';
-import axios from 'axios';
 import {
   Add,
   Receipt,
@@ -65,12 +64,10 @@ import {
   AddCircle,
   RemoveCircle,
   History,
-  Download as DownloadIcon,
   Assessment,
   Analytics,
   PictureAsPdf,
   CalendarToday,
-  TableChart,
   GridOn,
   Notifications,
   CheckCircle,
@@ -79,8 +76,6 @@ import {
   ThumbDown
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import InsertChartIcon from '@mui/icons-material/InsertChart';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useDispatch, useSelector } from 'react-redux';
@@ -118,8 +113,9 @@ const Accounts = () => {
   const [openDownloadDialog, setOpenDownloadDialog] = useState(false);
   const [downloadType, setDownloadType] = useState('credit');
   const [downloadStartDate, setDownloadStartDate] = useState(new Date());
-  const [downloadEndDate, setDownloadEndDate] = useState(new Date());  
-  
+  const [downloadEndDate, setDownloadEndDate] = useState(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedMonthYear, setSelectedMonthYear] = useState(new Date().getFullYear());
 
   const [transactionForm, setTransactionForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -158,9 +154,30 @@ const Accounts = () => {
     'Other Expenses'
   ];
 
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
   useEffect(() => {
     dispatch(fetchAccountBalance());
+    // Load current month's summary
+    dispatch(fetchMonthlySummary({
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1
+    }));
   }, [dispatch]);
+
+// First, update the useEffect to fetch monthly transactions
+useEffect(() => {
+  if (activeTab === 2) {
+    // Load selected month's summary when tab changes
+    dispatch(fetchMonthlySummary({
+      year: selectedMonthYear,
+      month: selectedMonth + 1
+    }));
+  }
+}, [activeTab, selectedMonth, selectedMonthYear, dispatch]);
 
   const handleOpenTransactionDialog = (type = 'income') => {
     setTransactionForm({
@@ -573,6 +590,21 @@ const Accounts = () => {
     }
   };
 
+  const handleMonthChange = (newMonth) => {
+    setSelectedMonth(newMonth);
+  };
+
+  const handleYearChange = (newYear) => {
+    setSelectedMonthYear(newYear);
+  };
+
+  const handleRefreshMonthlySummary = () => {
+    dispatch(fetchMonthlySummary({
+      year: selectedMonthYear,
+      month: selectedMonth + 1
+    }));
+  };
+
   // Calculate cash in hand
   const totalCashInHand = balance?.closing_balance || 0;
 
@@ -587,12 +619,494 @@ const Accounts = () => {
     );
   }
 
+// Monthly Summary Component - COMPLETELY REORGANIZED
+const MonthlySummaryTab = () => {
+  const isLoading = loading && activeTab === 2;
+  const [isDownloadingExcel, setIsDownloadingExcel] = useState(false);
+
+  // Helper functions to prepare data
+  const prepareIncomeData = () => {
+    const items = [];
+    let index = 1;
+    
+    if (!monthlySummary) return { items, total: 0 };
+    
+    // Opening Balance
+    if (monthlySummary.openingBalance) {
+      items.push({
+        no: index++,
+        description: 'Opening Balance',
+        amount: monthlySummary.openingBalance
+      });
+    }
+    
+    // Add income by category
+    if (monthlySummary.incomeByCategory) {
+      Object.entries(monthlySummary.incomeByCategory).forEach(([category, amount]) => {
+        items.push({
+          no: index++,
+          description: category,
+          amount: amount
+        });
+      });
+    }
+    
+    const total = items.reduce((sum, item) => sum + item.amount, 0);
+    return { items, total };
+  };
+
+  const prepareExpenseData = () => {
+    const items = [];
+    let index = 1;
+    
+    if (!monthlySummary) return { items, total: 0 };
+    
+    // Add expense by category
+    if (monthlySummary.expenseByCategory) {
+      Object.entries(monthlySummary.expenseByCategory).forEach(([category, amount]) => {
+        items.push({
+          no: index++,
+          description: category,
+          amount: amount
+        });
+      });
+    }
+    
+    const total = items.reduce((sum, item) => sum + item.amount, 0);
+    return { items, total };
+  };
+
+  // Get data
+  const { items: incomeItems, total: incomeTotal } = prepareIncomeData();
+  const { items: expenseItems, total: expenseTotal } = prepareExpenseData();
+  
+  // Calculate derived values
+  const totalIncome = monthlySummary?.totalIncome || incomeTotal || 0;
+  const totalExpense = monthlySummary?.totalExpense || expenseTotal || 0;
+  const netBalance = totalIncome - totalExpense;
+  const maxRows = Math.max(incomeItems.length, expenseItems.length);
+
+  const handleDownloadMonthlyExcel = async () => {
+    try {
+      setIsDownloadingExcel(true);
+      
+      const response = await accountAPI.downloadMonthlyExcel({
+        year: selectedMonthYear,
+        month: selectedMonth + 1
+      }, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `monthly-summary-${months[selectedMonth]}-${selectedMonthYear}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+      setSnackbar({ 
+        open: true, 
+        message: `Monthly summary for ${months[selectedMonth]} ${selectedMonthYear} exported to Excel successfully`, 
+        severity: 'success' 
+      });
+      
+    } catch (error) {
+      console.error('Excel export error:', error);
+      setSnackbar({ 
+        open: true, 
+        message: `Failed to export Excel: ${error.response?.data?.message || error.message}`, 
+        severity: 'error' 
+      });
+    } finally {
+      setIsDownloadingExcel(false);
+    }
+  };
+
+  // Now render the component
+  return (
+    <Box>
+      {/* Month Selector with Download Button */}
+      <Card sx={{ mb: 3, borderRadius: 2, boxShadow: 2 }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={2}>
+              <CalendarMonth color="primary" />
+              <Typography variant="h6">
+                Monthly Summary - {months[selectedMonth]} {selectedMonthYear}
+              </Typography>
+            </Box>
+            <Box display="flex" alignItems="center" gap={2}>
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Month</InputLabel>
+                <Select
+                  value={selectedMonth}
+                  label="Month"
+                  onChange={(e) => handleMonthChange(e.target.value)}
+                >
+                  {months.map((month, index) => (
+                    <MenuItem key={month} value={index}>{month}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Year</InputLabel>
+                <Select
+                  value={selectedMonthYear}
+                  label="Year"
+                  onChange={(e) => handleYearChange(e.target.value)}
+                >
+                  {[2022, 2023, 2024, 2025, 2026].map((year) => (
+                    <MenuItem key={year} value={year}>{year}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Button
+                startIcon={<Refresh />}
+                onClick={handleRefreshMonthlySummary}
+                variant="outlined"
+              >
+                Refresh
+              </Button>
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={isDownloadingExcel ? <CircularProgress size={20} /> : <GridOn />}
+                onClick={handleDownloadMonthlyExcel}
+                disabled={isDownloadingExcel || !monthlySummary}
+              >
+                {isDownloadingExcel ? 'Exporting...' : 'Export Excel'}
+              </Button>
+            </Box>
+          </Box>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+          <CircularProgress />
+          <Typography sx={{ ml: 2 }}>Loading monthly summary...</Typography>
+        </Box>
+      ) : monthlySummary ? (
+        <Grid container spacing={3}>
+          {/* NEW FORMAT TABLE */}
+          <Grid item xs={12}>
+            <Paper sx={{ borderRadius: 2, overflow: 'hidden', boxShadow: 3 }}>
+              <Box sx={{ 
+                p: 2, 
+                bgcolor: '#1a237e', 
+                color: 'white',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <Typography variant="h6">
+                  Financial Statement - {months[selectedMonth]} {selectedMonthYear}
+                </Typography>
+                <Chip 
+                  label={`Net: ৳${netBalance.toLocaleString()}`}
+                  color={netBalance >= 0 ? 'success' : 'error'}
+                  sx={{ color: 'white', fontWeight: 'bold' }}
+                />
+              </Box>
+              
+              <Box sx={{ overflowX: 'auto' }}>
+                <TableContainer>
+                  <Table sx={{ minWidth: 800 }}>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                        <TableCell align="center" colSpan={3} sx={{ 
+                          bgcolor: '#e8f5e9', 
+                          borderRight: '2px solid #ddd',
+                          fontWeight: 'bold',
+                          fontSize: '1.1rem'
+                        }}>
+                          <Box display="flex" alignItems="center" justifyContent="center">
+                            <TrendingUp sx={{ mr: 1, color: '#4caf50' }} />
+                            MONTHLY INCOME
+                          </Box>
+                        </TableCell>
+                        <TableCell align="center" colSpan={3} sx={{ 
+                          bgcolor: '#ffebee',
+                          fontWeight: 'bold',
+                          fontSize: '1.1rem'
+                        }}>
+                          <Box display="flex" alignItems="center" justifyContent="center">
+                            <TrendingDown sx={{ mr: 1, color: '#f44336' }} />
+                            MONTHLY EXPENSE
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow sx={{ bgcolor: '#fafafa' }}>
+                        {/* Income Headers */}
+                        <TableCell sx={{ fontWeight: 'bold', width: '10%', bgcolor: '#f1f8e9' }}>No.</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: '35%', bgcolor: '#f1f8e9' }}>Description</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: '15%', bgcolor: '#f1f8e9', borderRight: '2px solid #ddd' }}>Amount (BDT)</TableCell>
+                        
+                        {/* Expense Headers */}
+                        <TableCell sx={{ fontWeight: 'bold', width: '10%', bgcolor: '#ffebee' }}>No.</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: '35%', bgcolor: '#ffebee' }}>Description</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: '15%', bgcolor: '#ffebee' }}>Amount (BDT)</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    
+                    <TableBody>
+                      {/* Table Rows */}
+                      {Array.from({ length: maxRows }).map((_, index) => (
+                        <TableRow key={index} sx={{ 
+                          '&:hover': { bgcolor: '#fafafa' },
+                          borderBottom: index === maxRows - 1 ? '2px solid #1a237e' : '1px solid #e0e0e0'
+                        }}>
+                          {/* Income Column */}
+                          <TableCell sx={{ 
+                            bgcolor: index < incomeItems.length ? '#f9fbe7' : '#ffffff',
+                            borderRight: '2px solid #ddd'
+                          }}>
+                            {index < incomeItems.length ? (
+                              <Typography>{incomeItems[index].no}.</Typography>
+                            ) : null}
+                          </TableCell>
+                          <TableCell sx={{ bgcolor: index < incomeItems.length ? '#f9fbe7' : '#ffffff', borderRight: '2px solid #ddd' }}>
+                            {index < incomeItems.length ? incomeItems[index].description : null}
+                          </TableCell>
+                          <TableCell sx={{ 
+                            bgcolor: index < incomeItems.length ? '#f9fbe7' : '#ffffff',
+                            borderRight: '2px solid #ddd'
+                          }}>
+                            {index < incomeItems.length ? (
+                              <Typography fontWeight="bold" color="success.main">
+                                ৳{incomeItems[index].amount.toLocaleString()}
+                              </Typography>
+                            ) : null}
+                          </TableCell>
+                          
+                          {/* Expense Column */}
+                          <TableCell sx={{ bgcolor: index < expenseItems.length ? '#ffebee' : '#ffffff' }}>
+                            {index < expenseItems.length ? (
+                              <Typography>{expenseItems[index].no}.</Typography>
+                            ) : null}
+                          </TableCell>
+                          <TableCell sx={{ bgcolor: index < expenseItems.length ? '#ffebee' : '#ffffff' }}>
+                            {index < expenseItems.length ? expenseItems[index].description : null}
+                          </TableCell>
+                          <TableCell sx={{ bgcolor: index < expenseItems.length ? '#ffebee' : '#ffffff' }}>
+                            {index < expenseItems.length ? (
+                              <Typography fontWeight="bold" color="error.main">
+                                ৳{expenseItems[index].amount.toLocaleString()}
+                              </Typography>
+                            ) : null}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      
+                      {/* Total Row */}
+                      <TableRow sx={{ bgcolor: '#f0f0f0' }}>
+                        <TableCell colSpan={2} sx={{ 
+                          fontWeight: 'bold', 
+                          fontSize: '1.1rem',
+                          bgcolor: '#e8f5e9',
+                          borderRight: '2px solid #ddd'
+                        }}>
+                          <Box display="flex" alignItems="center">
+                            <TrendingUp sx={{ mr: 1, color: '#4caf50' }} />
+                            TOTAL INCOME:
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 'bold', 
+                          fontSize: '1.2rem',
+                          bgcolor: '#e8f5e9',
+                          borderRight: '2px solid #ddd'
+                        }}>
+                          <Typography color="success.main" fontWeight="bold">
+                            ৳{totalIncome.toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                        
+                        <TableCell colSpan={2} sx={{ 
+                          fontWeight: 'bold', 
+                          fontSize: '1.1rem',
+                          bgcolor: '#ffebee'
+                        }}>
+                          <Box display="flex" alignItems="center">
+                            <TrendingDown sx={{ mr: 1, color: '#f44336' }} />
+                            TOTAL EXPENSE:
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ 
+                          fontWeight: 'bold', 
+                          fontSize: '1.2rem',
+                          bgcolor: '#ffebee'
+                        }}>
+                          <Typography color="error.main" fontWeight="bold">
+                            ৳{totalExpense.toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      
+                      {/* Net Balance Row */}
+                      <TableRow sx={{ bgcolor: '#e3f2fd' }}>
+                        <TableCell colSpan={6} sx={{ 
+                          p: 3, 
+                          textAlign: 'center',
+                          fontWeight: 'bold',
+                          fontSize: '1.3rem'
+                        }}>
+                          <Box display="flex" alignItems="center" justifyContent="center">
+                            <AccountBalanceWallet sx={{ mr: 2, fontSize: '2rem', color: '#2196f3' }} />
+                            <Typography variant="h5" component="span">
+                              TOTAL BALANCE: 
+                              <Typography 
+                                component="span" 
+                                variant="h4" 
+                                sx={{ 
+                                  ml: 2, 
+                                  color: netBalance >= 0 ? 'success.main' : 'error.main',
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                ৳{totalIncome.toLocaleString()} - ৳{totalExpense.toLocaleString()} = ৳{netBalance.toLocaleString()} BDT
+                              </Typography>
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+              
+              <Box sx={{ 
+                p: 2, 
+                bgcolor: '#f5f5f5', 
+                borderTop: '1px solid #ddd',
+                textAlign: 'center'
+              }}>
+                <Typography variant="body2" color="textSecondary">
+                  Statement Period: 1st {months[selectedMonth]} to 31st {months[selectedMonth]} {selectedMonthYear}
+                </Typography>
+              </Box>
+            </Paper>
+          </Grid>
+
+          {/* Category Breakdown */}
+          <Grid item xs={12} md={6}>
+            <Card sx={{ borderRadius: 2, height: '100%' }}>
+              <CardContent>
+                <Box display="flex" alignItems="center" mb={2}>
+                  <Box sx={{ bgcolor: '#4caf50', p: 1, borderRadius: '50%', mr: 2 }}>
+                    <TrendingUp sx={{ color: 'white' }} />
+                  </Box>
+                  <Typography variant="h6" color="success.main">
+                    Income Breakdown
+                  </Typography>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                {incomeItems.length === 0 ? (
+                  <Box sx={{ py: 4, textAlign: 'center' }}>
+                    <Typography color="textSecondary">
+                      No income recorded for this month
+                    </Typography>
+                  </Box>
+                ) : (
+                  incomeItems.map((item, index) => (
+                    <Box key={index} sx={{ mb: 2 }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Box display="flex" alignItems="center">
+                          <Box sx={{ width: 8, height: 8, bgcolor: '#4caf50', borderRadius: '50%', mr: 1.5 }} />
+                          <Typography>{item.description}</Typography>
+                        </Box>
+                        <Typography fontWeight="bold" color="success.main" sx={{ fontSize: '1.1rem' }}>
+                          ৳{item.amount.toLocaleString()}
+                        </Typography>
+                      </Box>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={Math.min(100, (item.amount / (totalIncome || 1)) * 100)} 
+                        color="success"
+                        sx={{ mt: 1, height: 6, borderRadius: 3 }}
+                      />
+                    </Box>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card sx={{ borderRadius: 2, height: '100%' }}>
+              <CardContent>
+                <Box display="flex" alignItems="center" mb={2}>
+                  <Box sx={{ bgcolor: '#f44336', p: 1, borderRadius: '50%', mr: 2 }}>
+                    <TrendingDown sx={{ color: 'white' }} />
+                  </Box>
+                  <Typography variant="h6" color="error.main">
+                    Expense Breakdown
+                  </Typography>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                {expenseItems.length === 0 ? (
+                  <Box sx={{ py: 4, textAlign: 'center' }}>
+                    <Typography color="textSecondary">
+                      No expenses recorded for this month
+                    </Typography>
+                  </Box>
+                ) : (
+                  expenseItems.map((item, index) => (
+                    <Box key={index} sx={{ mb: 2 }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Box display="flex" alignItems="center">
+                          <Box sx={{ width: 8, height: 8, bgcolor: '#f44336', borderRadius: '50%', mr: 1.5 }} />
+                          <Typography>{item.description}</Typography>
+                        </Box>
+                        <Typography fontWeight="bold" color="error.main" sx={{ fontSize: '1.1rem' }}>
+                          ৳{item.amount.toLocaleString()}
+                        </Typography>
+                      </Box>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={Math.min(100, (item.amount / (totalExpense || 1)) * 100)} 
+                        color="error"
+                        sx={{ mt: 1, height: 6, borderRadius: 3 }}
+                      />
+                    </Box>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      ) : (
+        <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 2 }}>
+          <Typography variant="h6" gutterBottom color="textSecondary">
+            No monthly data available for {months[selectedMonth]} {selectedMonthYear}
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 3 }}>
+            Start recording transactions to see the monthly summary
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<Add />}
+            onClick={() => handleOpenTransactionDialog('income')}
+          >
+            Add Your First Transaction
+          </Button>
+        </Paper>
+      )}
+    </Box>
+  );
+};
+
   return (
     <Layout>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
           {/* Header */}
-          <Paper elevation={3} sx={{mb: 3, p: 3, borderRadius: 2, bgcolor: '#1a237e', color: 'white' }}>
+          <Paper elevation={3} sx={{ mb: 3, p: 3, borderRadius: 2, bgcolor: '#1a237e', color: 'white' }}>
             <Box display="flex" justifyContent="space-between" alignItems="center">
               <Box>
                 <Typography variant="h4" fontWeight="bold">
@@ -736,7 +1250,7 @@ const Accounts = () => {
             </CardContent>
           </Card>
 
-          {/* Tabs Section - For better organization */}
+          {/* Tabs Section */}
           <Paper sx={{ mb: 3, borderRadius: 2, overflow: 'hidden' }}>
             <Tabs 
               value={activeTab} 
@@ -948,19 +1462,8 @@ const Accounts = () => {
             </Grid>
           )}
 
-          {/* Tab 3: Monthly Summary - Placeholder for now */}
-          {activeTab === 2 && (
-            <Box>
-              <Paper sx={{ p: 3, mb: 3, textAlign: 'center' }}>
-                <Typography variant="h6" gutterBottom>
-                  Monthly Summary Coming Soon
-                </Typography>
-                <Typography color="textSecondary">
-                  This feature is under development
-                </Typography>
-              </Paper>
-            </Box>
-          )}
+          {/* Tab 3: Monthly Summary */}
+          {activeTab === 2 && <MonthlySummaryTab />}
 
           {/* Transaction Dialog */}
           <Dialog open={openTransactionDialog} onClose={handleCloseTransactionDialog} maxWidth="sm" fullWidth>

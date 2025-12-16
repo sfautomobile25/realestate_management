@@ -180,24 +180,37 @@ export const accountAPI = {
   createTransaction: (transactionData) => api.post('/accounts', transactionData),
   setOpeningBalance: (balanceData) => api.post('/accounts/opening-balance', balanceData),
   getVoucher: (voucherNumber) => api.get(`/accounts/voucher/${voucherNumber}`),
+  
+  // MONTHLY SUMMARY - CORRECTED
   getMonthlySummary: (params = {}) => api.get('/accounts/monthly-summary', { params }),
+  
   getAllTransactions: (params = {}) => api.get('/accounts', { params }),
+  
   downloadCreditPDF: (params = {}) => api.get('/accounts/download/credit', { 
     params,
     responseType: 'blob'
   }),
+  
   downloadDebitPDF: (params = {}) => api.get('/accounts/download/debit', { 
     params,
     responseType: 'blob'
   }),
+  
   getYearlySummary: (year) => api.get(`/accounts/yearly-summary/${year}`),
+  
   downloadYearlyExcel: (year) => api.get(`/accounts/download/yearly/${year}/excel`, {
     responseType: 'blob'
   }),
-   downloadYearlyPDF: (year) => api.get(`/accounts/download/yearly/${year}/pdf`, {
+  
+  downloadYearlyPDF: (year) => api.get(`/accounts/download/yearly/${year}/pdf`, {
     responseType: 'blob'
   }),
-
+  
+  // MONTHLY EXCEL - CORRECTED
+  downloadMonthlyExcel: (params) => api.get('/accounts/download/monthly-excel', { 
+    params,
+    responseType: 'blob'
+  }),
 };
 
 export const notificationAPI = {
