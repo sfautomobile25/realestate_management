@@ -691,74 +691,164 @@ const handleDownloadMonthlyExcel = async () => {
   try {
     setIsDownloadingExcel(true);
     
+    // Dynamically import exceljs (better for performance)
+    const ExcelJS = (await import('exceljs')).default;
+    
     // Create a new workbook
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'SHAHFARID REAL ESTATE COMPANY';
+    workbook.creator = 'শাহ ফরিদ রিয়েল এস্টেট কোঃ';
     workbook.created = new Date();
     
-    // Add a worksheet
-    const worksheet = workbook.addWorksheet(`Monthly Summary ${months[selectedMonth]} ${selectedMonthYear}`);
+    // Add a worksheet with Bengali name
+    const worksheet = workbook.addWorksheet(`${months[selectedMonth]} ${selectedMonthYear}`);
     
-    // Company Header
+    // Set Bengali font (if available, otherwise fallback)
+    const bengaliFont = 'Nirmala UI'; // Common Bengali font in Windows
+    
+    // =========== HEADER SECTION ===========
+    // Company Name - Bengali
     worksheet.mergeCells('A1:F1');
-    worksheet.getCell('A1').value = 'SHAHFARID REAL ESTATE COMPANY';
-    worksheet.getCell('A1').font = { bold: true, size: 16 };
-    worksheet.getCell('A1').alignment = { horizontal: 'center' };
+    const companyNameCell = worksheet.getCell('A1');
+    companyNameCell.value = 'শাহ ফরিদ রিয়েল এস্টেট কোঃ';
+    companyNameCell.font = {
+      name: bengaliFont,
+      bold: true,
+      size: 16,
+      color: { argb: 'FFFFFFFF' }
+    };
+    companyNameCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1A237E' } // Dark blue like your website
+    };
+    companyNameCell.alignment = { 
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+    companyNameCell.border = {
+      top: { style: 'medium' },
+      left: { style: 'medium' },
+      bottom: { style: 'medium' },
+      right: { style: 'medium' }
+    };
     
+    // Company Address - Bengali
     worksheet.mergeCells('A2:F2');
-    worksheet.getCell('A2').value = 'Ambika Sarak, Jhiltuli, Faridpur';
-    worksheet.getCell('A2').alignment = { horizontal: 'center' };
+    const addressCell = worksheet.getCell('A2');
+    addressCell.value = 'অম্বিকা রোড ঝিলটুলি, ফরিদপুর সদর।';
+    addressCell.font = {
+      name: bengaliFont,
+      size: 12,
+      color: { argb: 'FFFFFFFF' }
+    };
+    addressCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1A237E' }
+    };
+    addressCell.alignment = { 
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+    addressCell.border = {
+      left: { style: 'medium' },
+      right: { style: 'medium' },
+      bottom: { style: 'medium' }
+    };
     
+    // Report Title - English (for clarity)
     worksheet.mergeCells('A3:F3');
-    worksheet.getCell('A3').value = `Monthly Financial Statement - ${months[selectedMonth]} ${selectedMonthYear}`;
-    worksheet.getCell('A3').font = { bold: true };
-    worksheet.getCell('A3').alignment = { horizontal: 'center' };
+    const titleCell = worksheet.getCell('A3');
+    titleCell.value = `Monthly Financial Statement - ${months[selectedMonth]} ${selectedMonthYear}`;
+    titleCell.font = {
+      bold: true,
+      size: 14,
+      color: { argb: 'FFFFFFFF' }
+    };
+    titleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1A237E' }
+    };
+    titleCell.alignment = { 
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+    titleCell.border = {
+      left: { style: 'medium' },
+      right: { style: 'medium' },
+      bottom: { style: 'medium' }
+    };
     
     // Add empty row
     worksheet.addRow([]);
     
-    // Table headers - INCOME SIDE
+    // =========== TABLE HEADERS ===========
+    // Income Header
     worksheet.mergeCells('A5:C5');
-    worksheet.getCell('A5').value = 'MONTHLY INCOME';
-    worksheet.getCell('A5').font = { bold: true, color: { argb: 'FF4CAF50' } };
-    worksheet.getCell('A5').fill = {
+    const incomeHeader = worksheet.getCell('A5');
+    incomeHeader.value = 'মাসিক আয়'; // Bengali for "Monthly Income"
+    incomeHeader.font = {
+      name: bengaliFont,
+      bold: true,
+      size: 12,
+      color: { argb: 'FFFFFFFF' }
+    };
+    incomeHeader.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE8F5E9' }
+      fgColor: { argb: 'FF4CAF50' } // Green like your website
     };
-    worksheet.getCell('A5').alignment = { horizontal: 'center' };
-    worksheet.getCell('A5').border = {
+    incomeHeader.alignment = { 
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+    incomeHeader.border = {
       top: { style: 'thin' },
       left: { style: 'thin' },
       bottom: { style: 'thin' },
       right: { style: 'thin' }
     };
     
-    // Table headers - EXPENSE SIDE
+    // Expense Header
     worksheet.mergeCells('D5:F5');
-    worksheet.getCell('D5').value = 'MONTHLY EXPENSE';
-    worksheet.getCell('D5').font = { bold: true, color: { argb: 'FFF44336' } };
-    worksheet.getCell('D5').fill = {
+    const expenseHeader = worksheet.getCell('D5');
+    expenseHeader.value = 'মাসিক ব্যয়'; // Bengali for "Monthly Expense"
+    expenseHeader.font = {
+      name: bengaliFont,
+      bold: true,
+      size: 12,
+      color: { argb: 'FFFFFFFF' }
+    };
+    expenseHeader.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFFFEBEE' }
+      fgColor: { argb: 'FFF44336' } // Red like your website
     };
-    worksheet.getCell('D5').alignment = { horizontal: 'center' };
-    worksheet.getCell('D5').border = {
+    expenseHeader.alignment = { 
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+    expenseHeader.border = {
       top: { style: 'thin' },
       left: { style: 'thin' },
       bottom: { style: 'thin' },
       right: { style: 'thin' }
     };
     
-    // Column headers
-    const headerRow = worksheet.addRow([
-      'No.', 'Description', 'Amount (BDT)', 
-      'No.', 'Description', 'Amount (BDT)'
+    // =========== COLUMN HEADERS ===========
+    const columnHeaders = worksheet.addRow([
+      'ক্রমিক নং', 'বিবরণ', 'টাকার পরিমাণ (৳)', // Bengali for "No.", "Description", "Amount (BDT)"
+      'ক্রমিক নং', 'বিবরণ', 'টাকার পরিমাণ (৳)'
     ]);
     
-    headerRow.font = { bold: true };
-    headerRow.eachCell((cell) => {
+    columnHeaders.height = 25;
+    columnHeaders.eachCell((cell, colNumber) => {
+      cell.font = {
+        name: bengaliFont,
+        bold: true,
+        size: 11
+      };
       cell.border = {
         top: { style: 'thin' },
         left: { style: 'thin' },
@@ -768,11 +858,16 @@ const handleDownloadMonthlyExcel = async () => {
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFF5F5F5' }
+        fgColor: { argb: colNumber <= 3 ? 'FFF1F8E9' : 'FFFFEBEE' }
+      };
+      cell.alignment = { 
+        horizontal: 'center',
+        vertical: 'middle',
+        wrapText: true
       };
     });
     
-    // Add data rows
+    // =========== DATA ROWS ===========
     const maxRows = Math.max(incomeItems.length, expenseItems.length);
     
     for (let i = 0; i < maxRows; i++) {
@@ -780,128 +875,222 @@ const handleDownloadMonthlyExcel = async () => {
       const expenseItem = expenseItems[i];
       
       const row = worksheet.addRow([
-        incomeItem ? incomeItem.no + '.' : '',
+        incomeItem ? `${incomeItem.no}.` : '',
         incomeItem ? incomeItem.description : '',
         incomeItem ? incomeItem.amount : '',
-        expenseItem ? expenseItem.no + '.' : '',
+        expenseItem ? `${expenseItem.no}.` : '',
         expenseItem ? expenseItem.description : '',
         expenseItem ? expenseItem.amount : ''
       ]);
       
-      // Style the row
+      row.height = 20;
       row.eachCell((cell, colNumber) => {
+        // Set Bengali font for description cells
+        if (colNumber === 2 || colNumber === 5) {
+          cell.font = { name: bengaliFont, size: 11 };
+        } else {
+          cell.font = { size: 11 };
+        }
+        
         cell.border = {
           left: { style: 'thin' },
           right: { style: 'thin' },
           bottom: { style: 'thin' }
         };
         
-        // Color coding
+        // Color coding like website
         if (colNumber <= 3) {
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
-            fgColor: { argb: 'FFF9FBE7' }
+            fgColor: { argb: 'FFF9FBE7' } // Light green background
           };
           if (colNumber === 3 && incomeItem) {
             cell.numFmt = '#,##0;[Red]-#,##0';
-            cell.font = { color: { argb: 'FF4CAF50' }, bold: true };
+            cell.font = { 
+              color: { argb: 'FF4CAF50' }, 
+              bold: true 
+            };
+            cell.alignment = { horizontal: 'right' };
           }
         } else {
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
-            fgColor: { argb: 'FFFFEBEE' }
+            fgColor: { argb: 'FFFFEBEE' } // Light red background
           };
           if (colNumber === 6 && expenseItem) {
             cell.numFmt = '#,##0;[Red]-#,##0';
-            cell.font = { color: { argb: 'FFF44336' }, bold: true };
+            cell.font = { 
+              color: { argb: 'FFF44336' }, 
+              bold: true 
+            };
+            cell.alignment = { horizontal: 'right' };
           }
+        }
+        
+        // Center align serial numbers
+        if (colNumber === 1 || colNumber === 4) {
+          cell.alignment = { horizontal: 'center' };
         }
       });
     }
     
-    // Add separator row
-    const separatorRow = worksheet.addRow([]);
-    separatorRow.height = 5;
+    // =========== TOTALS SECTION ===========
+    // Add separator line
+    const separatorRow = worksheet.addRow(Array(6).fill(''));
+    separatorRow.height = 2;
+    separatorRow.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1A237E' }
+      };
+      cell.border = {
+        top: { style: 'thin' },
+        bottom: { style: 'thin' }
+      };
+    });
     
-    // Add totals row
+    // Totals row
     const totalsRow = worksheet.addRow([
-      'TOTAL INCOME:', '', totalIncome,
-      'TOTAL EXPENSE:', '', totalExpense
+      'মোট আয়:', '', totalIncome, // Bengali for "Total Income"
+      'মোট ব্যয়:', '', totalExpense // Bengali for "Total Expense"
     ]);
     
-    totalsRow.font = { bold: true };
-    totalsRow.getCell(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE8F5E9' }
-    };
-    totalsRow.getCell(3).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE8F5E9' }
-    };
-    totalsRow.getCell(3).numFmt = '#,##0;[Red]-#,##0';
-    totalsRow.getCell(3).font = { color: { argb: 'FF4CAF50' }, bold: true };
+    totalsRow.height = 25;
+    totalsRow.eachCell((cell, colNumber) => {
+      if (colNumber === 1 || colNumber === 2 || colNumber === 4 || colNumber === 5) {
+        cell.font = {
+          name: bengaliFont,
+          bold: true,
+          size: 12
+        };
+      } else {
+        cell.font = { bold: true, size: 12 };
+      }
+      
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+      
+      if (colNumber <= 3) {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE8F5E9' } // Green background
+        };
+        if (colNumber === 3) {
+          cell.numFmt = '#,##0;[Red]-#,##0';
+          cell.font = { 
+            color: { argb: 'FF4CAF50' }, 
+            bold: true,
+            size: 12
+          };
+          cell.alignment = { horizontal: 'right' };
+        }
+      } else {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFEBEE' } // Red background
+        };
+        if (colNumber === 6) {
+          cell.numFmt = '#,##0;[Red]-#,##0';
+          cell.font = { 
+            color: { argb: 'FFF44336' }, 
+            bold: true,
+            size: 12
+          };
+          cell.alignment = { horizontal: 'right' };
+        }
+      }
+    });
     
-    totalsRow.getCell(4).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFFFEBEE' }
-    };
-    totalsRow.getCell(6).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFFFEBEE' }
-    };
-    totalsRow.getCell(6).numFmt = '#,##0;[Red]-#,##0';
-    totalsRow.getCell(6).font = { color: { argb: 'FFF44336' }, bold: true };
+    // =========== NET BALANCE SECTION ===========
+    const netBalanceRowNumber = totalsRow.number + 2;
+    worksheet.mergeCells(`A${netBalanceRowNumber}:F${netBalanceRowNumber}`);
     
-    // Add net balance row
-    const netBalanceRow = worksheet.addRow([]);
-    worksheet.mergeCells('A' + netBalanceRow.number + ':F' + netBalanceRow.number);
-    worksheet.getCell('A' + netBalanceRow.number).value = `TOTAL BALANCE: ৳${totalIncome.toLocaleString()} - ৳${totalExpense.toLocaleString()} = ৳${netBalance.toLocaleString()} BDT`;
-    worksheet.getCell('A' + netBalanceRow.number).font = { 
-      bold: true, 
+    const netBalanceCell = worksheet.getCell(`A${netBalanceRowNumber}`);
+    netBalanceCell.value = `মোট ব্যালেন্স: ৳${totalIncome.toLocaleString()} - ৳${totalExpense.toLocaleString()} = ৳${netBalance.toLocaleString()} টাকা`;
+    netBalanceCell.font = {
+      name: bengaliFont,
+      bold: true,
       size: 14,
       color: { argb: netBalance >= 0 ? 'FF4CAF50' : 'FFF44336' }
     };
-    worksheet.getCell('A' + netBalanceRow.number).fill = {
+    netBalanceCell.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFE3F2FD' }
+      fgColor: { argb: 'FFE3F2FD' } // Blue background like website
     };
-    worksheet.getCell('A' + netBalanceRow.number).alignment = { horizontal: 'center' };
+    netBalanceCell.alignment = { 
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+    netBalanceCell.border = {
+      top: { style: 'medium' },
+      left: { style: 'medium' },
+      bottom: { style: 'medium' },
+      right: { style: 'medium' }
+    };
     
-    // Add footer
-    const footerRow = worksheet.addRow([]);
-    worksheet.mergeCells('A' + footerRow.number + ':F' + footerRow.number);
-    worksheet.getCell('A' + footerRow.number).value = `Statement Period: 1st ${months[selectedMonth]} to 31st ${months[selectedMonth]} ${selectedMonthYear}`;
-    worksheet.getCell('A' + footerRow.number).font = { italic: true };
-    worksheet.getCell('A' + footerRow.number).alignment = { horizontal: 'center' };
+    // =========== FOOTER SECTION ===========
+    const footerRowNumber = netBalanceRowNumber + 2;
+    worksheet.mergeCells(`A${footerRowNumber}:F${footerRowNumber}`);
     
-    // Auto-fit columns
+    const footerCell = worksheet.getCell(`A${footerRowNumber}`);
+    footerCell.value = `বিবরণী সময়কাল: ${months[selectedMonth]} মাসের ১ তারিখ থেকে ${months[selectedMonth]} মাসের ৩১ তারিখ ${selectedMonthYear}`;
+    footerCell.font = {
+      name: bengaliFont,
+      italic: true,
+      size: 10,
+      color: { argb: 'FF666666' }
+    };
+    footerCell.alignment = { horizontal: 'center' };
+    
+    // Add generation date
+    const dateRowNumber = footerRowNumber + 1;
+    worksheet.mergeCells(`A${dateRowNumber}:F${dateRowNumber}`);
+    
+    const dateCell = worksheet.getCell(`A${dateRowNumber}`);
+    dateCell.value = `প্রস্তুতকৃত তারিখ: ${new Date().toLocaleDateString('bn-BD')}`;
+    dateCell.font = {
+      name: bengaliFont,
+      size: 10,
+      color: { argb: 'FF666666' }
+    };
+    dateCell.alignment = { horizontal: 'center' };
+    
+    // =========== FORMAT COLUMNS ===========
+    // Set column widths
     worksheet.columns = [
-      { width: 8 },  // A
-      { width: 30 }, // B
-      { width: 15 }, // C
-      { width: 8 },  // D
-      { width: 30 }, // E
-      { width: 15 }  // F
+      { width: 10 },  // A: ক্রমিক নং (Serial No.)
+      { width: 35 },  // B: বিবরণ (Description)
+      { width: 18 },  // C: টাকার পরিমাণ (Amount)
+      { width: 10 },  // D: ক্রমিক নং (Serial No.)
+      { width: 35 },  // E: বিবরণ (Description)
+      { width: 18 }   // F: টাকার পরিমাণ (Amount)
     ];
     
-    // Generate Excel file
+    // Format amount columns as currency
+    worksheet.getColumn(3).numFmt = '#,##0;[Red]-#,##0';
+    worksheet.getColumn(6).numFmt = '#,##0;[Red]-#,##0';
+    
+    // =========== GENERATE FILE ===========
     const buffer = await workbook.xlsx.writeBuffer();
     
-    // Create download link
+    // Create and download file
     const blob = new Blob([buffer], { 
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
     });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Monthly_Summary_${months[selectedMonth]}_${selectedMonthYear}.xlsx`);
+    link.setAttribute('download', `মাসিক_আয়_ব্যয়_বিবরণী_${months[selectedMonth]}_${selectedMonthYear}.xlsx`);
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -911,29 +1100,81 @@ const handleDownloadMonthlyExcel = async () => {
     
     setSnackbar({ 
       open: true, 
-      message: `Monthly summary exported to Excel successfully`, 
+      message: `মাসিক বিবরণী এক্সেল ফাইল ডাউনলোড সম্পন্ন হয়েছে`, 
       severity: 'success' 
     });
     
   } catch (error) {
     console.error('Excel export error:', error);
     
-    // Fallback to CSV if ExcelJS fails
     if (error.message.includes('exceljs')) {
-      setSnackbar({ 
-        open: true, 
-        message: 'ExcelJS not installed. Please install it using: npm install exceljs', 
-        severity: 'error' 
-      });
+      // Fallback to CSV with Bengali
+      await generateBengaliCSV();
     } else {
       setSnackbar({ 
         open: true, 
-        message: `Failed to export Excel: ${error.message}`, 
+        message: `ফাইল ডাউনলোড ব্যর্থ: ${error.message}`, 
         severity: 'error' 
       });
     }
   } finally {
     setIsDownloadingExcel(false);
+  }
+};
+
+// Fallback CSV generator with Bengali text
+const generateBengaliCSV = async () => {
+  try {
+    let csv = 'শাহ ফরিদ রিয়েল এস্টেট কোঃ\n';
+    csv += 'অম্বিকা রোড ঝিলটুলি, ফরিদপুর সদর।\n';
+    csv += `মাসিক আয়-ব্যয় বিবরণী - ${months[selectedMonth]} ${selectedMonthYear}\n\n`;
+    
+    // Table headers
+    csv += 'আয় পক্ষ,,,ব্যয় পক্ষ,,\n';
+    csv += 'ক্রমিক নং,বিবরণ,টাকার পরিমাণ (৳),ক্রমিক নং,বিবরণ,টাকার পরিমাণ (৳)\n';
+    csv += '----------------------------------,,,----------------------------------\n';
+    
+    // Data rows
+    const maxRows = Math.max(incomeItems.length, expenseItems.length);
+    for (let i = 0; i < maxRows; i++) {
+      const incomeItem = incomeItems[i];
+      const expenseItem = expenseItems[i];
+      
+      csv += `${incomeItem ? incomeItem.no + '.' : ''},"${incomeItem ? incomeItem.description : ''}",${incomeItem ? incomeItem.amount : ''},`;
+      csv += `${expenseItem ? expenseItem.no + '.' : ''},"${expenseItem ? expenseItem.description : ''}",${expenseItem ? expenseItem.amount : ''}\n`;
+    }
+    
+    // Totals
+    csv += '==================================,,,==================================\n';
+    csv += `মোট আয়:,${totalIncome},মোট ব্যয়:,${totalExpense}\n`;
+    csv += '==================================,,,==================================\n\n';
+    csv += `মোট ব্যালেন্স: ${totalIncome} - ${totalExpense} = ${netBalance} টাকা\n\n`;
+    csv += `বিবরণী সময়কাল: ${months[selectedMonth]} মাসের ১ তারিখ থেকে ${months[selectedMonth]} মাসের ৩১ তারিখ ${selectedMonthYear}\n`;
+    csv += `প্রস্তুতকৃত তারিখ: ${new Date().toLocaleDateString('bn-BD')}\n`;
+    
+    // Download CSV
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `মাসিক_বিবরণী_${months[selectedMonth]}_${selectedMonthYear}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    
+    setSnackbar({ 
+      open: true, 
+      message: 'মাসিক বিবরণী CSV ফাইল ডাউনলোড সম্পন্ন হয়েছে', 
+      severity: 'info' 
+    });
+    
+  } catch (csvError) {
+    console.error('CSV generation failed:', csvError);
+    setSnackbar({ 
+      open: true, 
+      message: 'ফাইল ডাউনলোড ব্যর্থ হয়েছে', 
+      severity: 'error' 
+    });
   }
 };
 
