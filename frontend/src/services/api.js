@@ -188,7 +188,6 @@ export const notificationAPI = {
 export const accountAPI = {
   getBalance: (params = {}) => api.get('/accounts/balance', { params }),
   createTransaction: (transactionData) => api.post('/accounts', transactionData),
-  setOpeningBalance: (balanceData) => api.post('/accounts/opening-balance', balanceData),
   getVoucher: (voucherNumber) => api.get(`/accounts/voucher/${voucherNumber}`),
   
   // MONTHLY SUMMARY

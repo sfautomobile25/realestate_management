@@ -82,12 +82,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { 
   fetchAccountBalance, 
   createAccountTransaction, 
-  fetchMonthlySummary,
-  setOpeningBalance 
+  fetchMonthlySummary
 } from '../../store/slices/accountSlice';
 import Layout from '../../components/common/Layout';
 import { accountAPI } from '../../services/api';
-import * as ExcelJS from 'exceljs';
 
 const Accounts = () => {
   const dispatch = useDispatch();
@@ -106,7 +104,6 @@ const Accounts = () => {
   const [yearlySummary, setYearlySummary] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
   const [openTransactionDialog, setOpenTransactionDialog] = useState(false);
-  const [openOpeningBalanceDialog, setOpenOpeningBalanceDialog] = useState(false);
   const [openVoucherDialog, setOpenVoucherDialog] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedVoucher, setSelectedVoucher] = useState(null);
@@ -128,11 +125,6 @@ const Accounts = () => {
     payment_method: 'cash',
     reference_number: '',
     notes: ''
-  });
-
-  const [openingBalanceForm, setOpeningBalanceForm] = useState({
-    date: new Date().toISOString().split('T')[0],
-    amount: ''
   });
 
   const incomeCategoriesList = [
@@ -169,18 +161,7 @@ const Accounts = () => {
     }));
   }, [dispatch]);
 
-// First, update the useEffect to fetch monthly transactions
-useEffect(() => {
-  if (activeTab === 2) {
-    // Load selected month's summary when tab changes
-    dispatch(fetchMonthlySummary({
-      year: selectedMonthYear,
-      month: selectedMonth + 1
-    }));
-  }
-}, [activeTab, selectedMonth, selectedMonthYear, dispatch]);
-
-  const handleOpenTransactionDialog = (type = 'income') => {
+    const handleOpenTransactionDialog = (type = 'income') => {
     setTransactionForm({
       date: new Date().toISOString().split('T')[0],
       name: '',
@@ -195,13 +176,16 @@ useEffect(() => {
     setOpenTransactionDialog(true);
   };
 
-  const handleOpenOpeningBalanceDialog = () => {
-    setOpeningBalanceForm({
-      date: new Date().toISOString().split('T')[0],
-      amount: ''
-    });
-    setOpenOpeningBalanceDialog(true);
-  };
+// First, update the useEffect to fetch monthly transactions
+useEffect(() => {
+  if (activeTab === 2) {
+    // Load selected month's summary when tab changes
+    dispatch(fetchMonthlySummary({
+      year: selectedMonthYear,
+      month: selectedMonth + 1
+    }));
+  }
+}, [activeTab, selectedMonth, selectedMonthYear, dispatch]);
 
   const handleViewVoucher = (transaction) => {
     setSelectedVoucher(transaction);
@@ -210,10 +194,6 @@ useEffect(() => {
 
   const handleCloseTransactionDialog = () => {
     setOpenTransactionDialog(false);
-  };
-
-  const handleCloseOpeningBalanceDialog = () => {
-    setOpenOpeningBalanceDialog(false);
   };
 
   const handleCloseVoucherDialog = () => {
@@ -242,20 +222,9 @@ useEffect(() => {
     }
   };
 
-  const handleSetOpeningBalance = async () => {
-    try {
-      await dispatch(setOpeningBalance(openingBalanceForm)).unwrap();
-      setSnackbar({ open: true, message: 'Opening balance set successfully', severity: 'success' });
-      handleCloseOpeningBalanceDialog();
-      dispatch(fetchAccountBalance());
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to set opening balance: ' + error.message, severity: 'error' });
-    }
-  };
-
   const handleDateChange = (date) => {
     setSelectedDate(date);
-    dispatch(fetchAccountBalance(date.toISOString().split('T')[0]));
+    dispatch(fetchAccountBalance(date));
   };
 
   const handlePrintVoucher = () => {
@@ -606,8 +575,28 @@ useEffect(() => {
     }));
   };
 
-  // Calculate cash in hand
-  const totalCashInHand = balance?.closing_balance || 0;
+// Replace the totalCashInHand calculation with this:
+const totalCashInHand = parseFloat(balance?.closing_balance || 0);
+
+// Also fix the auto opening balance calculation:
+const autoOpeningBalance = parseFloat(balance?.previous_day_balance || balance?.opening_balance || 0);
+const yesterdayBalance = parseFloat(balance?.yesterday_balance || 0);
+const todayIncome = parseFloat(balance?.cash_in || 0);
+const todayExpense = parseFloat(balance?.cash_out || 0);
+
+// Add a validation function
+const validateAmount = (amount) => {
+  if (typeof amount === 'string') {
+    const parsed = parseFloat(amount.replace(/[^0-9.-]+/g, ""));
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof amount === 'number') {
+    return amount;
+  }
+  return 0;
+};
+
+const validatedCashInHand = validateAmount(balance?.closing_balance);
 
   if (loading && !balance) {
     return (
@@ -1702,7 +1691,7 @@ const generateCSVFallback = () => {
               </Stack>
             </Box>
           </Paper>
-          {/* Quick Stats */}
+          {/* Quick Stats - FIXED CALCULATION */}
           <Grid container spacing={3} mb={4}>
             <Grid item xs={12} sm={6} md={3}>
               <Card sx={{ borderRadius: 2, boxShadow: 3, borderLeft: '4px solid #4caf50' }}>
@@ -1712,7 +1701,10 @@ const generateCSVFallback = () => {
                     <Typography variant="h6">Today's Income</Typography>
                   </Box>
                   <Typography variant="h4" color="success.main" fontWeight="bold">
-                    ৳{(balance?.cash_in || 0).toFixed(2)}
+                    ৳{todayIncome.toLocaleString('en-US', { 
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2 
+                    })}
                   </Typography>
                 </CardContent>
               </Card>
@@ -1726,7 +1718,10 @@ const generateCSVFallback = () => {
                     <Typography variant="h6">Today's Expense</Typography>
                   </Box>
                   <Typography variant="h4" color="error.main" fontWeight="bold">
-                    ৳{(balance?.cash_out || 0).toFixed(2)}
+                    ৳{todayExpense.toLocaleString('en-US', { 
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2 
+                    })}
                   </Typography>
                 </CardContent>
               </Card>
@@ -1740,35 +1735,52 @@ const generateCSVFallback = () => {
                     <Typography variant="h6">Cash in Hand</Typography>
                   </Box>
                   <Typography variant="h4" color="primary.main" fontWeight="bold">
-                  ৳{(balance?.closing_balance || 0).toFixed(2)}
-                </Typography>
+                    ৳{validatedCashInHand.toLocaleString('en-US')*1000000}
+
+                    {
+                      console.log("COMING FROM DT: " + validatedCashInHand)
+                    }
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                    End of day balance
+                  </Typography>
+                  {/* DEBUG: Show calculation */}
+                  <Typography variant="caption" sx={{ display: 'block', fontStyle: 'italic', color: '#666' }}>
+                    Calculation: {autoOpeningBalance.toFixed(2)} + {todayIncome.toFixed(2)} - {todayExpense.toFixed(2)}
+                  </Typography>
                 </CardContent>
               </Card>
             </Grid>
             
+            {/* AUTO OPENING BALANCE CARD */}
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ borderRadius: 2, boxShadow: 3, borderLeft: '4px solid #ff9800' }}>
+              <Card sx={{ borderRadius: 2, boxShadow: 3, borderLeft: '4px solid #9c27b0' }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" mb={2}>
-                    <Savings color="warning" sx={{ mr: 2 }} />
-                    <Typography variant="h6">Opening Balance</Typography>
+                    <History color="secondary" sx={{ mr: 2 }} />
+                    <Typography variant="h6">Auto Opening Balance</Typography>
                   </Box>
-                  <Typography variant="h4" color="warning.main" fontWeight="bold">
-                    ৳{balance?.opening_balance?.toLocaleString() || '0'}
+                  <Typography variant="h4" color="secondary.main" fontWeight="bold">
+                    ৳{autoOpeningBalance.toLocaleString('en-US', { 
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2 
+                    })}
                   </Typography>
-                  <Button 
-                    size="small" 
-                    onClick={handleOpenOpeningBalanceDialog}
-                    sx={{ mt: 1 }}
-                  >
-                    Update
-                  </Button>
+                  <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                    From yesterday: ৳{yesterdayBalance.toLocaleString('en-US', { 
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2 
+                    })}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block', fontStyle: 'italic' }}>
+                    (Automatically carried forward)
+                  </Typography>
                 </CardContent>
               </Card>
             </Grid>
           </Grid>
 
-          {/* Date Selector */}
+            {/* Date Selector */}
           <Card sx={{ mb: 3, borderRadius: 2, boxShadow: 2 }}>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -2105,7 +2117,7 @@ const generateCSVFallback = () => {
             </DialogActions>
           </Dialog>
 
-          {/* Opening Balance Dialog */}
+          {/* Opening Balance Dialog
           <Dialog open={openOpeningBalanceDialog} onClose={handleCloseOpeningBalanceDialog} maxWidth="sm" fullWidth>
             <DialogTitle sx={{ bgcolor: '#ff9800', color: 'white' }}>
               Set Opening Balance
@@ -2140,7 +2152,7 @@ const generateCSVFallback = () => {
                 Set Opening Balance
               </Button>
             </DialogActions>
-          </Dialog>
+          </Dialog> */}
 
           {/* Voucher View Dialog */}
           {selectedVoucher && (

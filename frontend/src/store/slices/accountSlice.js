@@ -1,11 +1,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { accountAPI } from '../../services/api';
 
+// Update fetchAccountBalance to accept date parameter properly
 export const fetchAccountBalance = createAsyncThunk(
   'accounts/fetchBalance',
   async (date = null, { rejectWithValue }) => {
     try {
-      const params = date ? { date } : {};
+      const params = date ? { date: date.toISOString().split('T')[0] } : {};
       const response = await accountAPI.getBalance(params);
       return response.data;
     } catch (error) {
@@ -18,14 +19,19 @@ export const createAccountTransaction = createAsyncThunk(
   'accounts/createTransaction',
   async (transactionData, { rejectWithValue }) => {
     try {
-      const response = await accountAPI.createTransaction(transactionData);
+      // Ensure amount is a number
+      const sanitizedData = {
+        ...transactionData,
+        amount: parseFloat(transactionData.amount) || 0
+      };
+      
+      const response = await accountAPI.createTransaction(sanitizedData);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
   }
 );
-
 export const fetchMonthlySummary = createAsyncThunk(
   'accounts/fetchMonthlySummary',
   async ({ year, month }, { rejectWithValue }) => {
