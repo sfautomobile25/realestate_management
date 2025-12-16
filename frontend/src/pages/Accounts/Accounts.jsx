@@ -1735,7 +1735,7 @@ const generateCSVFallback = () => {
                     <Typography variant="h6">Cash in Hand</Typography>
                   </Box>
                   <Typography variant="h4" color="primary.main" fontWeight="bold">
-                    ৳{validatedCashInHand.toLocaleString('en-US')*1000000}
+                    ৳{(validatedCashInHand.toLocaleString('en-US')*1000000).toFixed(2)}
 
                     {
                       console.log("COMING FROM DT: " + validatedCashInHand)
