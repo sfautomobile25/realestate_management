@@ -3,59 +3,50 @@ import {
   Badge,
   IconButton,
   Popover,
-  Box,
   Typography,
-  Button,
-  Divider,
+  Box,
   List,
   ListItem,
   ListItemText,
   ListItemIcon,
+  Button,
+  Divider,
   Chip,
-  MenuItem,
-  Menu
+  CircularProgress
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
   CheckCircle,
   Cancel,
-  AccountBalance,
   Payment,
-  AttachMoney,
+  Home,
+  Build,
+  Warning,
   Schedule,
-  MoreVert,
-  DoneAll
+  AccountBalanceWallet,
+  AccessTime
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
-import {
-  fetchNotifications,
-  fetchUnreadCount,
-  markAsRead,
+import { 
+  fetchNotifications, 
+  markAsRead, 
+  markAllAsRead,
   approvePayment,
-  rejectPayment,
-  markAllAsRead
+  rejectPayment
 } from '../../store/slices/notificationSlice';
 import { useNavigate } from 'react-router-dom';
 
 const NotificationBell = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { items: notifications, unreadCount } = useSelector(state => state.notifications);
-  
   const [anchorEl, setAnchorEl] = useState(null);
-  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
-  const [selectedNotification, setSelectedNotification] = useState(null);
+  const { items, unreadCount, loading } = useSelector(state => state.notifications);
+  
+  const open = Boolean(anchorEl);
+  const id = open ? 'notification-popover' : undefined;
 
   useEffect(() => {
-    dispatch(fetchNotifications());
-    dispatch(fetchUnreadCount());
-    
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(() => {
-      dispatch(fetchUnreadCount());
-    }, 30000);
-    
-    return () => clearInterval(interval);
+    dispatch(fetchNotifications({ status: 'unread', limit: 10 }));
   }, [dispatch]);
 
   const handleClick = (event) => {
@@ -66,78 +57,54 @@ const NotificationBell = () => {
     setAnchorEl(null);
   };
 
-  const handleMenuClick = (event, notification) => {
-    event.stopPropagation();
-    setSelectedNotification(notification);
-    setMenuAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setMenuAnchorEl(null);
-    setSelectedNotification(null);
-  };
-
-  const handleMarkAsRead = (id) => {
-    dispatch(markAsRead(id));
-    handleMenuClose();
-  };
-
-  const handleApprovePayment = (id) => {
-    dispatch(approvePayment(id));
-    handleMenuClose();
-  };
-
-  const handleRejectPayment = (id) => {
-    dispatch(rejectPayment(id));
-    handleMenuClose();
-  };
-
-  const handleMarkAllAsRead = () => {
-    dispatch(markAllAsRead());
-  };
-
-  const handleNotificationClick = (notification) => {
-    if (notification.status === 'pending') {
-      dispatch(markAsRead(notification.id));
-    }
-    
+  const handleMarkAsRead = async (notificationId) => {
+    await dispatch(markAsRead(notificationId));
     if (notification.action_url) {
       navigate(notification.action_url);
     }
-    
     handleClose();
+  };
+
+  const handleMarkAllAsRead = async () => {
+    await dispatch(markAllAsRead());
+  };
+
+  const handleApprovePayment = async (notificationId) => {
+    await dispatch(approvePayment(notificationId));
+  };
+
+  const handleRejectPayment = async (notificationId) => {
+    await dispatch(rejectPayment(notificationId));
   };
 
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'payment_approval':
-        return <Payment color="primary" />;
+        return <Payment color="warning" />;
+      case 'rent_reminder':
+        return <Home color="error" />;
+      case 'utility_bill':
+        return <AccountBalanceWallet color="info" />;
+      case 'maintenance_request':
+        return <Build color="action" />;
+      case 'attendance_alert':
+        return <AccessTime color="warning" />;
       case 'salary_payment':
-        return <AccountBalance color="secondary" />;
-      case 'rent_payment':
-        return <AttachMoney color="success" />;
+        return <Payment color="success" />;
       default:
-        return <NotificationsIcon />;
+        return <Warning color="primary" />;
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending':
-        return 'warning';
-      case 'approved':
-        return 'success';
-      case 'rejected':
-        return 'error';
-      case 'read':
-        return 'default';
-      default:
-        return 'default';
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'urgent': return 'error';
+      case 'high': return 'warning';
+      case 'medium': return 'info';
+      case 'low': return 'default';
+      default: return 'default';
     }
   };
-
-  const open = Boolean(anchorEl);
-  const id = open ? 'notification-popover' : undefined;
 
   return (
     <>
@@ -150,7 +117,7 @@ const NotificationBell = () => {
           <NotificationsIcon />
         </Badge>
       </IconButton>
-
+      
       <Popover
         id={id}
         open={open}
@@ -164,141 +131,131 @@ const NotificationBell = () => {
           vertical: 'top',
           horizontal: 'right',
         }}
-        PaperProps={{
-          sx: { width: 400, maxHeight: 500 }
-        }}
+        sx={{ mt: 1 }}
       >
-        <Box sx={{ p: 2 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">Notifications</Typography>
+        <Box sx={{ width: 400, maxHeight: 500, overflow: 'auto' }}>
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" fontWeight="bold">
+              Notifications
+              {unreadCount > 0 && (
+                <Chip 
+                  label={`${unreadCount} unread`} 
+                  size="small" 
+                  color="error" 
+                  sx={{ ml: 1 }}
+                />
+              )}
+            </Typography>
             {unreadCount > 0 && (
-              <Button
-                size="small"
-                startIcon={<DoneAll />}
-                onClick={handleMarkAllAsRead}
-              >
+              <Button size="small" onClick={handleMarkAllAsRead}>
                 Mark all as read
               </Button>
             )}
           </Box>
-          
           <Divider />
           
-          {notifications.length === 0 ? (
-            <Box sx={{ p: 3, textAlign: 'center' }}>
-              <NotificationsIcon sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
+          {loading ? (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <CircularProgress size={24} />
+              <Typography sx={{ mt: 1 }}>Loading notifications...</Typography>
+            </Box>
+          ) : items.length === 0 ? (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <NotificationsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
               <Typography color="textSecondary">No notifications</Typography>
             </Box>
           ) : (
-            <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-              {notifications.map((notification) => (
+            <List sx={{ p: 0 }}>
+              {items.map((notification) => (
                 <React.Fragment key={notification.id}>
-                  <ListItem
-                    button
-                    onClick={() => handleNotificationClick(notification)}
+                  <ListItem 
+                    alignItems="flex-start"
                     sx={{
-                      bgcolor: notification.status === 'pending' ? '#f5f5f5' : 'transparent',
-                      borderRadius: 1,
-                      mb: 1
+                      bgcolor: notification.status === 'unread' ? 'action.hover' : 'transparent',
+                      '&:hover': { bgcolor: 'action.selected' },
+                      cursor: 'pointer'
                     }}
+                    onClick={() => handleMarkAsRead(notification.id)}
                   >
                     <ListItemIcon>
                       {getNotificationIcon(notification.type)}
                     </ListItemIcon>
                     <ListItemText
                       primary={
-                        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                          <Typography variant="subtitle2" sx={{ fontWeight: notification.status === 'pending' ? 'bold' : 'normal' }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                          <Typography variant="subtitle1" component="span">
                             {notification.title}
                           </Typography>
-                          <Box display="flex" alignItems="center" gap={1}>
-                            {notification.amount && (
-                              <Typography variant="body2" color="primary" fontWeight="bold">
-                                ৳{notification.amount}
-                              </Typography>
-                            )}
-                            <Chip
-                              label={notification.status}
-                              size="small"
-                              color={getStatusColor(notification.status)}
-                            />
-                            <IconButton
-                              size="small"
-                              onClick={(e) => handleMenuClick(e, notification)}
-                            >
-                              <MoreVert fontSize="small" />
-                            </IconButton>
-                          </Box>
+                          <Chip 
+                            label={notification.priority} 
+                            size="small"
+                            color={getPriorityColor(notification.priority)}
+                          />
                         </Box>
                       }
                       secondary={
-                        <Box>
-                          <Typography variant="body2" color="textSecondary">
+                        <>
+                          <Typography variant="body2" color="text.primary">
                             {notification.message}
                           </Typography>
+                          {notification.amount && (
+                            <Typography variant="body2" color="primary" fontWeight="bold">
+                              ৳{notification.amount.toLocaleString()}
+                            </Typography>
+                          )}
                           <Typography variant="caption" color="textSecondary">
                             {new Date(notification.createdAt).toLocaleString()}
                           </Typography>
-                        </Box>
+                          
+                          {notification.type === 'payment_approval' && notification.status === 'pending' && (
+                            <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                color="success"
+                                startIcon={<CheckCircle />}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApprovePayment(notification.id);
+                                }}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                color="error"
+                                startIcon={<Cancel />}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRejectPayment(notification.id);
+                                }}
+                              >
+                                Reject
+                              </Button>
+                            </Box>
+                          )}
+                        </>
                       }
                     />
                   </ListItem>
-                  <Divider />
+                  <Divider component="li" />
                 </React.Fragment>
               ))}
             </List>
           )}
+          
+          <Box sx={{ p: 2, textAlign: 'center' }}>
+            <Button 
+              variant="text" 
+              onClick={() => navigate('/notifications')}
+              fullWidth
+            >
+              View All Notifications
+            </Button>
+          </Box>
         </Box>
       </Popover>
-
-      {/* Notification Actions Menu */}
-      <Menu
-        anchorEl={menuAnchorEl}
-        open={Boolean(menuAnchorEl)}
-        onClose={handleMenuClose}
-      >
-        {selectedNotification && (
-          <>
-            {selectedNotification.status === 'pending' && (
-              <>
-                <MenuItem onClick={() => handleMarkAsRead(selectedNotification.id)}>
-                  <ListItemIcon>
-                    <CheckCircle fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText>Mark as Read</ListItemText>
-                </MenuItem>
-                {selectedNotification.type === 'payment_approval' && (
-                  <>
-                    <MenuItem onClick={() => handleApprovePayment(selectedNotification.id)}>
-                      <ListItemIcon>
-                        <CheckCircle fontSize="small" color="success" />
-                      </ListItemIcon>
-                      <ListItemText>Approve Payment</ListItemText>
-                    </MenuItem>
-                    <MenuItem onClick={() => handleRejectPayment(selectedNotification.id)}>
-                      <ListItemIcon>
-                        <Cancel fontSize="small" color="error" />
-                      </ListItemIcon>
-                      <ListItemText>Reject Payment</ListItemText>
-                    </MenuItem>
-                  </>
-                )}
-              </>
-            )}
-            <MenuItem onClick={() => {
-              if (selectedNotification.action_url) {
-                navigate(selectedNotification.action_url);
-              }
-              handleMenuClose();
-            }}>
-              <ListItemIcon>
-                <Schedule fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>View Details</ListItemText>
-            </MenuItem>
-          </>
-        )}
-      </Menu>
     </>
   );
 };

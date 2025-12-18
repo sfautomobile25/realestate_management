@@ -6,21 +6,23 @@ const auth = async (req, res, next) => {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
     if (!token) {
-      return res.status(401).json({ message: 'Access denied. No token provided.' });
+      return res.status(401).json({ message: 'No authentication token' });
     }
-
+    
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findByPk(decoded.userId);
+    const user = await User.findByPk(decoded.id);
     
     if (!user) {
-      return res.status(401).json({ message: 'Token is invalid.' });
+      return res.status(401).json({ message: 'User not found' });
     }
-
+    
     req.user = user;
+    req.token = token;
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Token is invalid.' });
+    console.error('Auth middleware error:', error);
+    res.status(401).json({ message: 'Please authenticate' });
   }
 };
 
-module.exports = { auth };
+module.exports = auth;  // Make sure this is exported correctly
